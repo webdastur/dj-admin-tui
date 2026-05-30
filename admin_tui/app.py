@@ -12,12 +12,17 @@ remains importable from Phase 2 onward.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual.app import App
 
 if TYPE_CHECKING:
     from admin_tui._internal.session import TuiSession
+
+#: The bundled design-system stylesheet — the single source of truth for all
+#: component styling. See admin_tui/styles.tcss.
+_BASE_STYLESHEET = Path(__file__).parent / "styles.tcss"
 
 
 def _allow_django_orm_in_async_context() -> None:
@@ -48,10 +53,13 @@ class AdminTuiApp(App):
     def __init__(self, *, session: "TuiSession") -> None:
         _allow_django_orm_in_async_context()
         self.session = session
-        # The `.tcss` override is layered on top of the selected theme; set
-        # CSS_PATH before super().__init__ so Textual loads it.
+        # Load the shared design-system stylesheet first; the user's optional
+        # `ADMIN_TUI["THEME"]` .tcss is layered on top (later = higher priority)
+        # so it overrides the base. Set CSS_PATH before super().__init__.
+        css_paths = [str(_BASE_STYLESHEET)]
         if session.theme_path is not None:
-            self.CSS_PATH = str(session.theme_path)
+            css_paths.append(str(session.theme_path))
+        self.CSS_PATH = css_paths
         super().__init__()
         # Palette layer: register the bundled themes and apply the resolved
         # THEME_NAME (defaults to the bundled "django" theme). Subclasses may

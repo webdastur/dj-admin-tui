@@ -49,17 +49,6 @@ class _ToolScreenPickerModal(ModalScreen[type | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
 
-    DEFAULT_CSS = """
-    _ToolScreenPickerModal #tool-picker {
-        background: $surface;
-        border: tall $primary;
-        padding: 1 2;
-        width: 50;
-        height: auto;
-        max-height: 80%;
-    }
-    """
-
     def __init__(self, screens: dict[str, type]) -> None:
         super().__init__()
         self._screens = screens
@@ -99,22 +88,11 @@ class IndexScreen(Screen):
         super().__init__()
         self.session = session
 
-    DEFAULT_CSS = """
-    IndexScreen #index-breadcrumb {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
-    IndexScreen #index-greeting {
-        height: auto;
-        padding: 0 1;
-        color: $accent;
-    }
-    """
+    # All styling lives in the shared design system (admin_tui/styles.tcss).
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
-        yield Static("Home", id="index-breadcrumb")
+        yield Static("Home", id="index-breadcrumb", classes="atui-breadcrumb")
         with Container(id="index-container"):
             yield Static(
                 f"Django administration — running as [b]"

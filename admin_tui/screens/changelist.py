@@ -95,17 +95,6 @@ class _ActionPickerModal(ModalScreen[tuple[str, str, str] | None]):
         Binding("enter", "select", "Select", show=False),
     ]
 
-    DEFAULT_CSS = """
-    _ActionPickerModal #action-picker {
-        background: $surface;
-        border: tall $primary;
-        padding: 1 2;
-        width: 60;
-        height: auto;
-        max-height: 80%;
-    }
-    """
-
     def __init__(self, actions: list[tuple[str, str, str]]) -> None:
         super().__init__()
         self._actions = actions
@@ -147,81 +136,7 @@ class ChangelistScreen(Screen):
         Binding("enter", "open_detail", "Open", show=False),
     ]
 
-    DEFAULT_CSS = """
-    ChangelistScreen #changelist-breadcrumb {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
-    ChangelistScreen #object-tools {
-        height: 1;
-        padding: 0 1;
-    }
-    ChangelistScreen #search-bar {
-        width: 48;
-        height: 1;
-    }
-    ChangelistScreen #toolbar-spacer {
-        width: 1fr;
-        height: 1;
-    }
-    ChangelistScreen #add-button {
-        height: 1;
-        min-width: 0;
-        padding: 0 2;
-        border: none;
-        background: $primary;
-        color: $text;
-    }
-    ChangelistScreen #add-button:hover {
-        background: $primary-lighten-1;
-    }
-    ChangelistScreen #changelist-header {
-        height: auto;
-        padding: 0 1;
-    }
-    ChangelistScreen #changelist-body {
-        height: 1fr;
-    }
-    ChangelistScreen #changelist-table {
-        width: 1fr;
-        height: 1fr;
-    }
-    ChangelistScreen #filter-sidebar {
-        width: 28;
-        height: 1fr;
-        border-left: solid $primary;
-        padding: 0 1;
-    }
-    ChangelistScreen #pagination {
-        height: 1;
-        align-horizontal: left;
-        padding: 0 1;
-    }
-    ChangelistScreen #pagination Button {
-        height: 1;
-        min-width: 0;
-        padding: 0 1;
-        margin-right: 2;
-        border: none;
-        background: transparent;
-        color: $accent;
-    }
-    ChangelistScreen #pagination Button:hover {
-        background: $panel;
-    }
-    ChangelistScreen #page-indicator {
-        width: auto;
-        padding: 0 2;
-        color: $text-muted;
-    }
-    ChangelistScreen #cell-preview {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-        background: $panel;
-    }
-    """
+    # All styling lives in the shared design system (admin_tui/styles.tcss).
 
     def __init__(
         self,
@@ -255,12 +170,12 @@ class ChangelistScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
-        yield Static("", id="changelist-breadcrumb")
+        yield Static("", id="changelist-breadcrumb", classes="atui-breadcrumb")
         with Horizontal(id="object-tools"):
             if self.overlay.model_admin.get_search_fields(self.request):
                 yield Input(placeholder="Search…", id="search-bar", compact=True)
-            yield Static(id="toolbar-spacer")
-            yield Button("+ Add", id="add-button")
+            yield Static(id="toolbar-spacer", classes="atui-spacer")
+            yield Button("+ Add", id="add-button", classes="atui-btn atui-btn-primary")
         yield Static("", id="changelist-header")
         with Horizontal(id="changelist-body"):
             yield DataTable(
@@ -270,9 +185,9 @@ class ChangelistScreen(Screen):
             )
             yield FilterSidebar(id="filter-sidebar")
         with Horizontal(id="pagination"):
-            yield Button("‹ Prev", id="prev-button")
+            yield Button("‹ Prev", id="prev-button", classes="atui-btn-link")
             yield Static("", id="page-indicator")
-            yield Button("Next ›", id="next-button")
+            yield Button("Next ›", id="next-button", classes="atui-btn-link")
         yield Static("", id="cell-preview")
         yield Footer()
 

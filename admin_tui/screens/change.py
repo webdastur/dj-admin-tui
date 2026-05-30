@@ -69,86 +69,7 @@ class ChangeScreen(Screen):
         Binding("escape", "back", "Cancel", show=False),
     ]
 
-    DEFAULT_CSS = """
-    ChangeScreen #change-breadcrumb {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
-    ChangeScreen #detail-body {
-        height: 1fr;
-        padding: 1 2;
-    }
-    ChangeScreen #detail-heading {
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    /* Django-style label-left / widget-right field rows. */
-    ChangeScreen .field-row {
-        layout: horizontal;
-        height: auto;
-        margin-bottom: 1;
-    }
-    ChangeScreen .field-label {
-        width: 22;
-        color: $text-muted;
-        text-align: right;
-        padding: 0 2 0 0;
-    }
-    ChangeScreen .field-widget {
-        width: 1fr;
-        height: auto;
-    }
-    ChangeScreen .field-error {
-        color: $error;
-        text-style: italic;
-    }
-    ChangeScreen .non-field-error {
-        background: $error 20%;
-        color: $error;
-        padding: 0 1;
-        margin-bottom: 1;
-    }
-    ChangeScreen .fieldset {
-        margin-bottom: 1;
-        border-top: solid $primary;
-        padding-top: 1;
-    }
-    ChangeScreen .fieldset-name {
-        text-style: bold;
-        color: $accent;
-    }
-    /* Django submit row: solid Save, neutral Cancel, red Delete (pushed right). */
-    ChangeScreen #form-buttons {
-        height: auto;
-        margin-top: 1;
-        padding: 1 0 0 0;
-        border-top: solid $primary;
-    }
-    ChangeScreen #form-buttons Button {
-        height: 3;
-        min-width: 0;
-        margin-right: 2;
-        border: none;
-    }
-    ChangeScreen #save-button, ChangeScreen #save-add-button,
-    ChangeScreen #save-continue-button {
-        background: $primary;
-        color: $text;
-    }
-    ChangeScreen #cancel-button {
-        background: $surface;
-        color: $text;
-    }
-    ChangeScreen #submit-spacer {
-        width: 1fr;
-        height: 1;
-    }
-    ChangeScreen #delete-button {
-        background: $error;
-        color: $text;
-    }
-    """
+    # All styling lives in the shared design system (admin_tui/styles.tcss).
 
     def __init__(
         self,
@@ -178,7 +99,7 @@ class ChangeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
-        yield Static(self._breadcrumb(), id="change-breadcrumb")
+        yield Static(self._breadcrumb(), id="change-breadcrumb", classes="atui-breadcrumb")
         with VerticalScroll(id="detail-body"):
             yield Static(self._heading(), id="detail-heading")
             if self.mode in ("add", "edit"):
@@ -190,15 +111,20 @@ class ChangeScreen(Screen):
             yield from self._compose_body()
             if self.mode in ("add", "edit"):
                 with Horizontal(id="form-buttons"):
-                    yield Button("Save", id="save-button")
-                    yield Button("Save and add another", id="save-add-button")
-                    yield Button("Save and continue editing", id="save-continue-button")
-                    yield Button("Cancel", id="cancel-button")
+                    yield Button("Save", id="save-button",
+                                 classes="atui-btn atui-btn-primary")
+                    yield Button("Save and add another", id="save-add-button",
+                                 classes="atui-btn atui-btn-primary")
+                    yield Button("Save and continue editing", id="save-continue-button",
+                                 classes="atui-btn atui-btn-primary")
+                    yield Button("Cancel", id="cancel-button",
+                                 classes="atui-btn atui-btn-default")
                     if self.mode == "edit" and self.overlay.has_delete_permission(
                         self.request, self.obj
                     ):
-                        yield Static(id="submit-spacer")
-                        yield Button("Delete", id="delete-button")
+                        yield Static(id="submit-spacer", classes="atui-spacer")
+                        yield Button("Delete", id="delete-button",
+                                     classes="atui-btn atui-btn-danger")
         yield Footer()
 
     def on_mount(self) -> None:

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
@@ -53,19 +53,7 @@ class ActionConfirmScreen(Screen):
         Binding("escape", "cancel", "Cancel", show=False),
     ]
 
-    DEFAULT_CSS = """
-    ActionConfirmScreen #confirm-body {
-        padding: 2 4;
-    }
-    ActionConfirmScreen .preview-list {
-        color: $text-muted;
-        padding-left: 2;
-    }
-    ActionConfirmScreen .error {
-        color: $error;
-        text-style: italic;
-    }
-    """
+    # All styling lives in the shared design system (admin_tui/styles.tcss).
 
     def __init__(
         self,
@@ -101,22 +89,36 @@ class ActionConfirmScreen(Screen):
             yield Static(self._summary())
             yield Static(self._preview(), classes="preview-list")
             yield Static("", id="error-area", classes="error")
-            yield Static("[b]Confirm?[/]  (y = Yes, n = No)")
-            yield Button("Yes", id="yes-button", variant="primary")
-            yield Button("No", id="no-button")
+            with Horizontal(id="confirm-buttons"):
+                yes_classes = (
+                    "atui-btn atui-btn-danger"
+                    if self.kind == "delete"
+                    else "atui-btn atui-btn-primary"
+                )
+                yes_label = "Yes, I'm sure" if self.kind == "delete" else "Yes"
+                no_label = "No, take me back" if self.kind == "delete" else "No"
+                yield Button(yes_label, id="yes-button", classes=yes_classes)
+                yield Button(no_label, id="no-button",
+                             classes="atui-btn atui-btn-default")
         yield Footer()
 
     # ---- text helpers ------------------------------------------------
 
     def _title(self) -> str:
         if self.kind == "delete":
-            return "[b red]Delete selected records[/]"
+            return "Delete"
         kind_label = "TUI action" if self.kind == "tui" else "Run action"
-        return f"[b]{kind_label}:[/] {self.action_label}"
+        return f"{kind_label}: {self.action_label}"
 
     def _summary(self) -> str:
         verbose = self.overlay.model_admin.model._meta.verbose_name_plural
-        return f"{self.queryset.count()} {verbose}"
+        count = self.queryset.count()
+        if self.kind == "delete":
+            return (
+                f"Are you sure you want to delete the {count} selected "
+                f"{verbose}? All of the following will be deleted:"
+            )
+        return f"{self.action_label} will run on {count} {verbose}:"
 
     def _preview(self) -> str:
         sample = list(self.queryset[:5])
