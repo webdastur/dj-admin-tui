@@ -44,3 +44,7 @@ class TuiSession:
     compat_report: dict[Any, list[str]] = field(default_factory=dict)
     """`{Model: [override_name, ...]}` populated once by
     `admin_tui._internal.compat.scan(admin.site)` (Phase 7 / T078)."""
+
+    compat_warned: set[Any] = field(default_factory=set)
+    """Models the operator has already been warned about. Set entries are
+    added on first access; the set is checked before surfacing a notify."""

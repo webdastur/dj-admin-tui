@@ -66,3 +66,21 @@ class Book(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class BookChapter(models.Model):
+    """Inline relation to Book — fixture for the inlines test (R15 / FR-024)."""
+
+    book = models.ForeignKey(
+        Book,
+        on_delete=models.CASCADE,
+        related_name="chapters",
+    )
+    title = models.CharField(max_length=128)
+    ordering = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("ordering", "title")
+
+    def __str__(self) -> str:
+        return f"{self.book.title} — {self.title}"

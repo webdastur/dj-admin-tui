@@ -13,7 +13,15 @@ from __future__ import annotations
 from django import forms
 from django.contrib import admin, messages
 
-from sample_project.library.models import Author, Book, Tag
+from sample_project.library.models import Author, Book, BookChapter, Tag
+
+
+class BookChapterInline(admin.TabularInline):
+    """Stock TabularInline — exercises the inline rendering path (R15)."""
+
+    model = BookChapter
+    extra = 0
+    fields = ("ordering", "title")
 
 
 class BookForm(forms.ModelForm):
@@ -92,6 +100,7 @@ class BookAdmin(admin.ModelAdmin):
         archive_selected_action,
         failing_action,
     ]
+    inlines = [BookChapterInline]
     autocomplete_fields = ("author",)
     list_per_page = 50
 

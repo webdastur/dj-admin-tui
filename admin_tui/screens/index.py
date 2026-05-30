@@ -112,6 +112,20 @@ class IndexScreen(Screen):
 
     def on_mount(self) -> None:
         self._populate()
+        self._populate_compat_report()
+
+    def _populate_compat_report(self) -> None:
+        """Lazy-fill `session.compat_report` on first mount."""
+        if self.session.compat_report:
+            return
+        from django.contrib import admin as django_admin
+
+        from admin_tui._internal import compat as compat_module
+        from admin_tui.conf import _loaded
+
+        if not _loaded.get("COMPAT_WARNINGS", True):
+            return
+        self.session.compat_report = compat_module.scan(django_admin.site)
 
     def _populate(self) -> None:
         request = build_request(self.session.user)
@@ -130,12 +144,30 @@ class IndexScreen(Screen):
         if not isinstance(item, _ModelListItem):
             return
         model = item.model
+        self._maybe_warn_compat(model)
         request = build_request(self.session.user)
         request._tui_session = self.session
         overlay = tui_site.get_or_synthesize(model)
         screen_cls = self.app.screen_for_changelist(overlay, request)
         self.app.push_screen(
             screen_cls(session=self.session, overlay=overlay, request=request)
+        )
+
+    def _maybe_warn_compat(self, model) -> None:  # type: ignore[no-untyped-def]
+        """One-time per-session notify if `model` has unhonourable overrides."""
+        if model in self.session.compat_warned:
+            return
+        overrides = self.session.compat_report.get(model)
+        if not overrides:
+            return
+        self.session.compat_warned.add(model)
+        names = ", ".join(overrides)
+        self.app.notify(
+            f"{model._meta.verbose_name} has admin overrides the TUI does "
+            f"not honour: {names}. Reproduce them via a TuiAdmin overlay.",
+            title="Compat",
+            severity="warning",
+            timeout=10,
         )
 
     def action_open_model(self) -> None:

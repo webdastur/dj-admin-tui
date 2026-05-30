@@ -38,6 +38,7 @@ from textual.widgets import (
 from admin_tui.core.audit import _change_message, _log_addition, _log_change
 from admin_tui.core.forms import (
     _build_form,
+    _inline_instances,
     _iter_bound_fields,
     _readonly_field_names,
 )
@@ -158,6 +159,54 @@ class ChangeScreen(Screen):
                 for field_name in set_body.get("fields", []):
                     yield Static(self._format_field_value(field_name),
                                  classes="field-row")
+        # R15: inline relations rendered as read-only sections below the
+        # main fieldsets. Editable inline rows are deferred to a follow-up.
+        if self.obj is not None:
+            yield from self._compose_inlines()
+
+    def _compose_inlines(self) -> Iterable[Widget]:
+        inlines = _inline_instances(
+            self.overlay.model_admin, self.request, self.obj
+        )
+        for inline in inlines:
+            verbose = inline.model._meta.verbose_name_plural
+            with Vertical(classes="fieldset inline-section"):
+                yield Static(
+                    f"[b]{verbose}[/]  [dim](read-only in v1)[/]",
+                    classes="fieldset-name",
+                )
+                related = self._related_queryset(inline)
+                count = related.count()
+                if count == 0:
+                    yield Static("[dim](none)[/]", classes="field-row")
+                else:
+                    fields = list(getattr(inline, "fields", None) or [])
+                    if not fields:
+                        # Fall back to model fields if inline didn't declare any.
+                        fields = [
+                            f.name for f in inline.model._meta.fields
+                            if f.name not in {"id", "book"}
+                        ]
+                    for related_obj in related:
+                        bits = []
+                        for f in fields:
+                            value = getattr(related_obj, f, "")
+                            bits.append(f"{f}={value!s}")
+                        yield Static(
+                            "• " + ", ".join(bits),
+                            classes="field-row",
+                        )
+
+    def _related_queryset(self, inline) -> Any:  # type: ignore[no-untyped-def]
+        """The queryset of related rows for this inline + this object."""
+        fk_name = inline.fk_name or _detect_fk_to(
+            inline.model, type(self.obj)
+        )
+        if fk_name is None:
+            return inline.model._default_manager.none()
+        return inline.model._default_manager.filter(
+            **{fk_name: self.obj.pk}
+        )
 
     def _compose_form_body(self) -> Iterable[Widget]:
         assert self.form is not None
@@ -350,6 +399,16 @@ class ChangeScreen(Screen):
 
 
 # -- value extraction --------------------------------------------------
+
+
+def _detect_fk_to(inline_model, parent_model) -> str | None:  # type: ignore[no-untyped-def]
+    """Find the field on `inline_model` that FK-points at `parent_model`."""
+    from django.db.models import ForeignKey
+
+    for field in inline_model._meta.get_fields():
+        if isinstance(field, ForeignKey) and field.related_model is parent_model:
+            return field.name
+    return None
 
 
 def _read_widget_value(widget: Widget) -> Any:

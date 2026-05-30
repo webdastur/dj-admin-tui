@@ -56,3 +56,21 @@ def _readonly_field_names(
 ) -> set[str]:
     """The set of fields the admin treats as read-only on this view."""
     return set(model_admin.get_readonly_fields(request, obj))
+
+
+def _inline_instances(
+    model_admin: "ModelAdmin",
+    request: "HttpRequest",
+    obj: Any | None = None,
+) -> list:
+    """Return the InlineModelAdmin instances for `obj`.
+
+    Skips inlines the user lacks `has_view_permission` on — same
+    permission gate the web admin's change_view applies (R15).
+    """
+    instances = model_admin.get_inline_instances(request, obj)
+    return [
+        inline
+        for inline in instances
+        if inline.has_view_permission(request, obj)
+    ]
