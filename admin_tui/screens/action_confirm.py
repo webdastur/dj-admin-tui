@@ -19,7 +19,7 @@ terminal without that two-step web flow.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -27,7 +27,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
-from admin_tui.core.actions import _run_action
+from admin_tui.core.actions import _run_action, _run_tui_action
 from admin_tui.core.audit import _log_deletions
 
 if TYPE_CHECKING:
@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 
 # Sentinel action name for the TUI-managed delete path.
 DELETE_SENTINEL = "_admin_tui_delete"
+
+ActionKind = Literal["admin", "tui", "delete"]
 
 
 class ActionConfirmScreen(Screen):
@@ -74,6 +76,7 @@ class ActionConfirmScreen(Screen):
         action_name: str,
         action_label: str,
         queryset: "QuerySet",
+        kind: ActionKind = "admin",
     ) -> None:
         super().__init__()
         self.session = session
@@ -82,6 +85,11 @@ class ActionConfirmScreen(Screen):
         self.action_name = action_name
         self.action_label = action_label
         self.queryset = queryset
+        # Sentinel action name takes precedence — it routes to the delete
+        # path regardless of `kind` passed in.
+        if action_name == DELETE_SENTINEL:
+            kind = "delete"
+        self.kind: ActionKind = kind
         self._error_message: str | None = None
 
     # ---- compose -----------------------------------------------------
@@ -101,9 +109,10 @@ class ActionConfirmScreen(Screen):
     # ---- text helpers ------------------------------------------------
 
     def _title(self) -> str:
-        if self.action_name == DELETE_SENTINEL:
+        if self.kind == "delete":
             return "[b red]Delete selected records[/]"
-        return f"[b]Run action:[/] {self.action_label}"
+        kind_label = "TUI action" if self.kind == "tui" else "Run action"
+        return f"[b]{kind_label}:[/] {self.action_label}"
 
     def _summary(self) -> str:
         verbose = self.overlay.model_admin.model._meta.verbose_name_plural
@@ -126,7 +135,7 @@ class ActionConfirmScreen(Screen):
             self.action_cancel()
 
     def action_confirm(self) -> None:
-        if self.action_name == DELETE_SENTINEL:
+        if self.kind == "delete":
             self._do_delete()
         else:
             self._do_action()
@@ -137,9 +146,14 @@ class ActionConfirmScreen(Screen):
     # ---- action dispatch --------------------------------------------
 
     def _do_action(self) -> None:
-        result = _run_action(
-            self.overlay, self.request, self.action_name, self.queryset
-        )
+        if self.kind == "tui":
+            result = _run_tui_action(
+                self.overlay, self.request, self.action_name, self.queryset
+            )
+        else:
+            result = _run_action(
+                self.overlay, self.request, self.action_name, self.queryset
+            )
 
         # Surface captured messages as notifications. Map Django message
         # levels to Textual notify severities.

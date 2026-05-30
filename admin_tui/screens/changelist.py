@@ -67,14 +67,16 @@ class _SearchModal(ModalScreen[str]):
 
 
 class _ActionPickerItem(ListItem):
-    def __init__(self, action_name: str, label: str) -> None:
-        super().__init__(Static(label))
+    def __init__(self, kind: str, action_name: str, label: str) -> None:
+        prefix = {"admin": "", "tui": "[dim]·[/] ", "delete": ""}.get(kind, "")
+        super().__init__(Static(f"{prefix}{label}"))
+        self.kind = kind
         self.action_name = action_name
         self.action_label = label
 
 
-class _ActionPickerModal(ModalScreen[tuple[str, str] | None]):
-    """Lists available actions; dismisses with (action_name, label) or None."""
+class _ActionPickerModal(ModalScreen[tuple[str, str, str] | None]):
+    """Lists available actions; dismisses with (kind, action_name, label) or None."""
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=True),
@@ -92,7 +94,7 @@ class _ActionPickerModal(ModalScreen[tuple[str, str] | None]):
     }
     """
 
-    def __init__(self, actions: list[tuple[str, str]]) -> None:
+    def __init__(self, actions: list[tuple[str, str, str]]) -> None:
         super().__init__()
         self._actions = actions
 
@@ -104,8 +106,8 @@ class _ActionPickerModal(ModalScreen[tuple[str, str] | None]):
 
     def on_mount(self) -> None:
         list_view = self.query_one("#action-list", ListView)
-        for name, label in self._actions:
-            list_view.append(_ActionPickerItem(name, label))
+        for kind, name, label in self._actions:
+            list_view.append(_ActionPickerItem(kind, name, label))
         list_view.focus()
 
     def action_cancel(self) -> None:
@@ -114,7 +116,7 @@ class _ActionPickerModal(ModalScreen[tuple[str, str] | None]):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
         if isinstance(item, _ActionPickerItem):
-            self.dismiss((item.action_name, item.action_label))
+            self.dismiss((item.kind, item.action_name, item.action_label))
 
 
 class ChangelistScreen(Screen):
@@ -174,6 +176,32 @@ class ChangelistScreen(Screen):
 
     def on_mount(self) -> None:
         self._rebuild()
+        self._bind_overlay_keys()
+
+    def _bind_overlay_keys(self) -> None:
+        """Register the overlay's `key_bindings` dynamically.
+
+        Each entry is `(key, method_name, description)`. We bind the key
+        to `row_invoke(method_name)` which dispatches to the overlay's
+        method on the focused row.
+        """
+        for entry in getattr(self.overlay, "key_bindings", []) or []:
+            if not entry:
+                continue
+            if len(entry) >= 3:
+                key, method_name, description = entry[0], entry[1], entry[2]
+            elif len(entry) == 2:
+                key, method_name = entry
+                description = method_name
+            else:
+                continue
+            # `bind` evaluates the action string at run time. Quote the
+            # method_name as a string parameter.
+            self.bind(
+                keys=key,
+                action=f"row_invoke('{method_name}')",
+                description=description,
+            )
 
     def _rebuild(self) -> None:
         changelist = _build_changelist(
@@ -385,32 +413,39 @@ class ChangelistScreen(Screen):
             )
             return
 
-        def _on_pick(result: tuple[str, str] | None) -> None:
+        def _on_pick(result: tuple[str, str, str] | None) -> None:
             if result is None:
                 return
-            action_name, action_label = result
-            self._open_confirm(action_name, action_label)
+            kind, action_name, action_label = result
+            self._open_confirm(kind, action_name, action_label)
 
         self.app.push_screen(_ActionPickerModal(actions), _on_pick)
 
-    def _available_actions(self) -> list[tuple[str, str]]:
-        """Build the (action_name, label) list shown in the picker.
+    def _available_actions(self) -> list[tuple[str, str, str]]:
+        """Build the (kind, action_name, label) list shown in the picker.
 
         Skip the web admin's `delete_selected` (it expects an HTTP
         request/response cycle); offer our own TUI-managed delete instead
-        when the user has delete permission.
+        when the user has delete permission. Include the overlay's
+        `bulk_actions` as kind="tui" entries.
         """
-        out: list[tuple[str, str]] = []
+        out: list[tuple[str, str, str]] = []
         admin_actions = _get_actions(self.overlay, self.request)
         for name, (_func, _action_name, description) in admin_actions.items():
             if name == "delete_selected":
                 continue
-            out.append((name, str(description or name)))
+            out.append(("admin", name, str(description or name)))
+        # TUI-native bulk actions declared on the overlay (FR-024).
+        for method_name in getattr(self.overlay, "bulk_actions", []) or []:
+            label = method_name.replace("_", " ").title()
+            out.append(("tui", method_name, label))
         if self.overlay.has_delete_permission(self.request):
-            out.append((DELETE_SENTINEL, "Delete selected"))
+            out.append(("delete", DELETE_SENTINEL, "Delete selected"))
         return out
 
-    def _open_confirm(self, action_name: str, action_label: str) -> None:
+    def _open_confirm(
+        self, kind: str, action_name: str, action_label: str
+    ) -> None:
         confirm_request = build_request(self.session.user)
         confirm_request._tui_session = self.session
         queryset = self.overlay.model_admin.get_queryset(confirm_request).filter(
@@ -424,8 +459,45 @@ class ChangelistScreen(Screen):
                 action_name=action_name,
                 action_label=action_label,
                 queryset=queryset,
+                kind=kind,  # type: ignore[arg-type]
             )
         )
+
+    def action_row_invoke(self, method_name: str) -> None:
+        """Dispatch an overlay's key-bound row action on the focused row.
+
+        Wraps the call in the same FR-019 spirit: any exception is
+        surfaced as a Textual notification, the screen stays mounted.
+        """
+        table = self.query_one("#changelist-table", DataTable)
+        if table.cursor_row is None:
+            self.app.notify("Move the cursor to a row first.", severity="warning")
+            return
+        row_key, _col_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        pk = row_key.value if row_key is not None else None
+        if pk is None:
+            return
+        try:
+            obj = self.overlay.model_admin.get_queryset(self.request).get(pk=pk)
+        except Exception as exc:
+            self.app.notify(f"Could not load row: {exc}", severity="error")
+            return
+        method = getattr(self.overlay, method_name, None)
+        if not callable(method):
+            self.app.notify(
+                f"Overlay method {method_name!r} is not declared.",
+                severity="error",
+            )
+            return
+        try:
+            method(self.request, obj)
+        except Exception as exc:
+            self.app.notify(
+                f"{type(exc).__name__}: {exc}",
+                severity="error",
+            )
+            return
+        self._reset_request_and_rebuild()
 
     # ---- helpers -------------------------------------------------------
 

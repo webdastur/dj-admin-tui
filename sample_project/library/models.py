@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from django.db import models
 
+from sample_project.library.fields import ColorField
+
 
 class Tag(models.Model):
     name = models.CharField(max_length=64, unique=True)
@@ -51,6 +53,13 @@ class Book(models.Model):
     featured = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     metadata = models.JSONField(default=dict, blank=True)
+    color = ColorField()
+    # Populated by BookTui.before_save (US4 lifecycle-hook demonstration).
+    # `editable=False` keeps it out of every form (admin + TUI), so the
+    # only path that writes it is the overlay's lifecycle hook.
+    normalised_title = models.CharField(
+        max_length=256, blank=True, default="", editable=False
+    )
 
     class Meta:
         ordering = ("title",)

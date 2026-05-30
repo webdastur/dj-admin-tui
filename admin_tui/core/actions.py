@@ -83,29 +83,70 @@ def _run_action(
         )
     func, _name, _description = actions[action_name]
 
-    # Snapshot the messages list length so we can return ONLY this
-    # action's messages (others may have been captured earlier in the
-    # session, e.g. by previous actions).
-    messages_before = len(request._messages.captured)
+    return _dispatch_action(
+        overlay=overlay,
+        request=request,
+        action_name=action_name,
+        queryset=queryset,
+        call=lambda: func(overlay.model_admin, request, queryset),
+    )
 
+
+def _run_tui_action(
+    overlay: "TuiAdmin",
+    request: "HttpRequest",
+    method_name: str,
+    queryset: "QuerySet",
+) -> ActionResult:
+    """Run a TUI-native bulk action declared on the overlay.
+
+    Same FR-019 control flow as `_run_action`, but the callable is an
+    overlay method rather than an admin-registered action.
+    """
+    method = getattr(overlay, method_name, None)
+    if not callable(method):
+        raise KeyError(
+            f"TUI-native bulk action {method_name!r} is not declared on "
+            f"this overlay."
+        )
+
+    return _dispatch_action(
+        overlay=overlay,
+        request=request,
+        action_name=method_name,
+        queryset=queryset,
+        call=lambda: method(request, queryset),
+    )
+
+
+def _dispatch_action(
+    *,
+    overlay: "TuiAdmin",
+    request: "HttpRequest",
+    action_name: str,
+    queryset: "QuerySet",
+    call: Callable[[], Any],
+) -> ActionResult:
+    """Shared control flow for admin + TUI-native action dispatch.
+
+    Snapshots `request._messages.captured` before/after; fires
+    `before_action` unconditionally; fires `after_action` ONLY on the
+    no-exception branch (FR-019); re-raises KeyboardInterrupt/SystemExit.
+    """
+    messages_before = len(request._messages.captured)
     overlay.before_action(request, action_name, queryset)
 
     try:
-        partial_result = func(overlay.model_admin, request, queryset)
+        partial_result = call()
     except (KeyboardInterrupt, SystemExit):
-        # Surface fatal interrupts upstream.
         raise
     except Exception as exc:
-        # Action emitted messages before failing — keep them. Do NOT fire
-        # after_action's success branch. Caller MUST NOT route through
-        # audit helpers on this path (FR-019).
         return ActionResult(
             messages=list(request._messages.captured[messages_before:]),
             exception=exc,
             partial_result=None,
         )
 
-    # Success path: fire after_action, return captured messages + result.
     overlay.after_action(
         request, action_name, queryset, result=partial_result
     )

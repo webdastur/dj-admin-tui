@@ -99,6 +99,7 @@ def test_create_book_with_valid_data_persists_and_logs(superuser, author):
             "featured": "False",
             "archived": "False",
             "metadata": "{}",
+            "color": "#000000",
             "tags": [],
         },
     )
@@ -134,6 +135,7 @@ def test_create_with_failing_clean_does_not_save(superuser, author):
             "featured": "False",
             "archived": "False",
             "metadata": "{}",
+            "color": "#000000",
             "tags": [],
         },
     )
@@ -167,6 +169,7 @@ def test_edit_existing_book_logs_change_with_parity(superuser, existing_book):
             "featured": "True",  # toggled
             "archived": "False",
             "metadata": "{}",
+            "color": "#000000",
             "tags": [],
         },
     )
@@ -230,6 +233,7 @@ def test_readonly_field_value_survives_save(superuser, existing_book, monkeypatc
         "featured": "False",
         "archived": "False",
         "metadata": "{}",
+            "color": "#000000",
         "tags": [],
         # Note: `published` not included because the form would reject it.
         # Even if a malicious caller added it, the form would ignore it.
@@ -272,6 +276,7 @@ def test_before_save_and_after_save_fire_in_order(superuser, author):
             "featured": "False",
             "archived": "False",
             "metadata": "{}",
+            "color": "#000000",
             "tags": [],
         },
     )

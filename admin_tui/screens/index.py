@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
-from textual.screen import Screen
+from textual.containers import Container, Vertical
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Footer, Header, ListItem, ListView, Static
 
 from admin_tui.core.request import build_request
@@ -35,12 +35,63 @@ class _ModelListItem(ListItem):
         self.model = model
 
 
+class _ToolScreenItem(ListItem):
+    """ListItem for a globally-registered tool screen (`tui_site._screens`)."""
+
+    def __init__(self, slug: str, screen_cls: type) -> None:
+        super().__init__(Static(f"[b]{slug}[/]"))
+        self.slug = slug
+        self.screen_cls = screen_cls
+
+
+class _ToolScreenPickerModal(ModalScreen[type | None]):
+    """Lists registered tool screens; dismisses with the chosen screen class."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
+
+    DEFAULT_CSS = """
+    _ToolScreenPickerModal #tool-picker {
+        background: $surface;
+        border: tall $primary;
+        padding: 1 2;
+        width: 50;
+        height: auto;
+        max-height: 80%;
+    }
+    """
+
+    def __init__(self, screens: dict[str, type]) -> None:
+        super().__init__()
+        self._screens = screens
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="tool-picker"):
+            yield Static("[b]Tool screens[/]")
+            list_view = ListView(id="tool-list")
+            yield list_view
+
+    def on_mount(self) -> None:
+        list_view = self.query_one("#tool-list", ListView)
+        for slug, screen_cls in self._screens.items():
+            list_view.append(_ToolScreenItem(slug, screen_cls))
+        list_view.focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item = event.item
+        if isinstance(item, _ToolScreenItem):
+            self.dismiss(item.screen_cls)
+
+
 class IndexScreen(Screen):
     """The first screen mounted by AdminTuiApp."""
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
         Binding("?", "show_help", "Help", show=True),
+        Binding("g", "tools", "Tools", show=True),
         Binding("enter", "open_model", "Open", show=False),
     ]
 
@@ -92,3 +143,27 @@ class IndexScreen(Screen):
         if list_view.highlighted_child is not None:
             # Manually trigger Selected behavior for keyboard Enter.
             list_view.action_select_cursor()
+
+    def action_tools(self) -> None:
+        """Open the tool-screen picker. Defined for the `g` binding."""
+        screens = dict(tui_site._screens)
+        if not screens:
+            self.app.notify(
+                "No tool screens registered. Use `tui_site.register_screen(...)`.",
+                severity="information",
+            )
+            return
+
+        def _on_pick(screen_cls: type | None) -> None:
+            if screen_cls is None:
+                return
+            # Tool screens take a `session` kwarg; library/screens.py
+            # follows this convention.
+            try:
+                instance = screen_cls(session=self.session)
+            except TypeError:
+                # Fallback: no-arg constructor.
+                instance = screen_cls()
+            self.app.push_screen(instance)
+
+        self.app.push_screen(_ToolScreenPickerModal(screens), _on_pick)
