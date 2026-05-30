@@ -1,7 +1,7 @@
 """Minimal Django settings for the sample_project test fixture.
 
 This project is part of the djangotui repo, not shipped in the wheel. It exists
-to exercise admin_tui end-to-end against a real Django admin — see plan.md.
+to exercise admin_tui end-to-end against a real Django admin.
 """
 
 from pathlib import Path

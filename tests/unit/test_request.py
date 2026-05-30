@@ -1,4 +1,4 @@
-"""Synthetic request + capturing messages backend (research.md § R3).
+"""Synthetic request + capturing messages backend.
 
 The two invariants this pins:
   1. `build_request(user)` returns a real HttpRequest with `.user is user`.

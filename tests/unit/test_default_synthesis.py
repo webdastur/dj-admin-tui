@@ -1,4 +1,4 @@
-"""Default TuiAdmin synthesis (Constitution III + IV, data-model.md § 2).
+"""Default TuiAdmin synthesis.
 
 For a model with a registered ModelAdmin but no TuiAdmin overlay,
 `tui_site.get_or_synthesize(model)` must return a working TuiAdmin instance

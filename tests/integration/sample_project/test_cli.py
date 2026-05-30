@@ -1,4 +1,4 @@
-"""CLI exit-code contract (contracts/cli.md, FR-001..003, SC-008).
+"""CLI exit-code contract.
 
 We invoke the command in-process via `call_command(...)`, which forwards
 `sys.exit(N)` as `SystemExit(N)`. This gives us pytest-django's transactional

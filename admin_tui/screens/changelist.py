@@ -154,12 +154,27 @@ class ChangelistScreen(Screen):
         color: $text-muted;
     }
     ChangelistScreen #object-tools {
-        height: auto;
-        align-horizontal: right;
+        height: 1;
         padding: 0 1;
     }
-    ChangelistScreen #object-tools Button {
-        min-width: 10;
+    ChangelistScreen #search-bar {
+        width: 48;
+        height: 1;
+    }
+    ChangelistScreen #toolbar-spacer {
+        width: 1fr;
+        height: 1;
+    }
+    ChangelistScreen #add-button {
+        height: 1;
+        min-width: 0;
+        padding: 0 2;
+        border: none;
+        background: $primary;
+        color: $text;
+    }
+    ChangelistScreen #add-button:hover {
+        background: $primary-lighten-1;
     }
     ChangelistScreen #changelist-header {
         height: auto;
@@ -173,20 +188,32 @@ class ChangelistScreen(Screen):
         height: 1fr;
     }
     ChangelistScreen #filter-sidebar {
-        width: 32;
+        width: 28;
         height: 1fr;
         border-left: solid $primary;
         padding: 0 1;
     }
     ChangelistScreen #pagination {
-        height: auto;
-        align-horizontal: center;
+        height: 1;
+        align-horizontal: left;
         padding: 0 1;
     }
-    ChangelistScreen #pagination Static {
+    ChangelistScreen #pagination Button {
+        height: 1;
+        min-width: 0;
+        padding: 0 1;
+        margin-right: 2;
+        border: none;
+        background: transparent;
+        color: $accent;
+    }
+    ChangelistScreen #pagination Button:hover {
+        background: $panel;
+    }
+    ChangelistScreen #page-indicator {
         width: auto;
         padding: 0 2;
-        content-align: center middle;
+        color: $text-muted;
     }
     ChangelistScreen #cell-preview {
         height: 1;
@@ -215,6 +242,10 @@ class ChangelistScreen(Screen):
         # Per-rebuild caches (selection-independent).
         self._specs: list = []
         self._full_cells: dict[str, list[tuple[str, str]]] = {}
+        # Sort state mirrored from Django (controlled by ModelAdmin: `ordering`,
+        # `sortable_by`, `admin_order_field`). Keys are table column indices.
+        self._ordering_cols: dict[int, str] = {}
+        self._sortable_positions: set[int] = set()
         # Column under the pointer at the last mouse-down — lets us tell a
         # mouse click on the checkbox column apart from a keyboard Enter when
         # a RowSelected fires. `None` means "no recent mouse activation".
@@ -226,7 +257,10 @@ class ChangelistScreen(Screen):
         yield Header(show_clock=False)
         yield Static("", id="changelist-breadcrumb")
         with Horizontal(id="object-tools"):
-            yield Button("+ Add", id="add-button", variant="primary")
+            if self.overlay.model_admin.get_search_fields(self.request):
+                yield Input(placeholder="Search…", id="search-bar", compact=True)
+            yield Static(id="toolbar-spacer")
+            yield Button("+ Add", id="add-button")
         yield Static("", id="changelist-header")
         with Horizontal(id="changelist-body"):
             yield DataTable(
@@ -247,8 +281,42 @@ class ChangelistScreen(Screen):
         # Hide the Add affordance when the user can't add.
         if not self.overlay.has_add_permission(self.request):
             self.query_one("#add-button", Button).display = False
+        # Reflect any active search in the persistent search bar.
+        q = str(self.query_params.get("q", "") or "")
+        if q:
+            search_bar = self._search_bar()
+            if search_bar is not None:
+                search_bar.value = q
         self._rebuild()
-        self.query_one("#changelist-table", DataTable).focus()
+        # Focus the table AFTER the initial render so the search bar (which is
+        # earlier in the DOM) can't keep the focus — arrow keys must drive the
+        # table from the start.
+        self.call_after_refresh(self._focus_table)
+
+    def _focus_table(self) -> None:
+        try:
+            self.query_one("#changelist-table", DataTable).focus()
+        except Exception:
+            pass
+
+    def _search_bar(self) -> Input | None:
+        try:
+            return self.query_one("#search-bar", Input)
+        except Exception:
+            return None
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "search-bar":
+            return
+        stripped = event.value.strip()
+        if stripped:
+            self.query_params["q"] = stripped
+        else:
+            self.query_params.pop("q", None)
+        self.query_params.pop("p", None)
+        self._reset_request_and_rebuild()
+        # Return focus to the table so the operator can navigate results.
+        self._focus_table()
 
     def _refresh_breadcrumb(self) -> None:
         meta = self.overlay.model_admin.model._meta
@@ -313,9 +381,17 @@ class ChangelistScreen(Screen):
     def on_data_table_header_selected(
         self, event: DataTable.HeaderSelected
     ) -> None:
-        """Mouse: clicking a column header sorts by it (mirrors `s`)."""
+        """Mouse: clicking a column header sorts by it (mirrors `s`). Only the
+        columns the ModelAdmin marks sortable respond (Django parity)."""
         col_index = event.column_index
         if col_index == 0:  # selection column — not sortable
+            return
+        if col_index not in self._sortable_positions:
+            self.app.notify(
+                "This column is not sortable.",
+                severity="information",
+                timeout=3,
+            )
             return
         self._sort_by_column_index(col_index)
 
@@ -359,12 +435,27 @@ class ChangelistScreen(Screen):
             return
 
     def _rebuild(self) -> None:
-        changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query_params
+        # Any of these can hit the DB (missing table, permission error, broken
+        # ModelAdmin method, …). A failure MUST surface as a notification and
+        # leave the operator on a usable screen — never crash the app.
+        try:
+            changelist = _build_changelist(
+                self.overlay.model_admin, self.request, query=self.query_params
+            )
+            self._refresh_header(changelist)
+            self._refresh_table(changelist)
+            self._refresh_filters(changelist)
+        except Exception as exc:  # noqa: BLE001 — last-resort UI guard
+            self._notify_error("Could not load this list", exc)
+
+    def _notify_error(self, context: str, exc: Exception) -> None:
+        """Surface an error as a Textual notification instead of crashing."""
+        self.app.notify(
+            f"{context}: {type(exc).__name__}: {exc}",
+            title="Error",
+            severity="error",
+            timeout=10,
         )
-        self._refresh_header(changelist)
-        self._refresh_table(changelist)
-        self._refresh_filters(changelist)
 
     def _refresh_header(self, changelist) -> None:  # type: ignore[no-untyped-def]
         model_name = self.overlay.model_admin.model._meta.verbose_name_plural
@@ -381,9 +472,9 @@ class ChangelistScreen(Screen):
             bits.append(f"selected: {len(self.selected_pks)}")
         if q:
             bits.append(f"search: {q!r}")
-        sort = self.query_params.get("o", "")
-        if sort:
-            bits.append(f"sort: {sort}")
+        sort_label = self._sort_label(changelist)
+        if sort_label:
+            bits.append(sort_label)
         self.query_one("#changelist-header", Static).update(" · ".join(bits))
         self.query_one("#page-indicator", Static).update(
             f"page {page} / {num_pages}"
@@ -416,10 +507,26 @@ class ChangelistScreen(Screen):
         layout_cols = [(col, self._column_label(col)) for col in columns]
         self._specs = compute_column_widths(layout_cols, full_rows)
 
+        # Sort state straight from Django (reflects ModelAdmin.ordering default,
+        # sortable_by, and admin_order_field). Keys are 1-based against the
+        # user's list_display = our table column index (our selection col is 0,
+        # Django's action_checkbox is its index 0 — they line up).
+        self._ordering_cols = dict(changelist.get_ordering_field_columns())
+        self._sortable_positions = set()
+        for i, col in enumerate(columns):
+            try:
+                if changelist.get_ordering_field(col):
+                    self._sortable_positions.add(i + 1)
+            except Exception:  # noqa: BLE001
+                pass
+
         # Leading selection-indicator column (fixed width).
         table.add_column(" ", key=SELECTION_COLUMN_KEY, width=SELECTION_WIDTH)
-        for spec in self._specs:
-            table.add_column(spec.label, key=spec.key, width=spec.width)
+        for i, spec in enumerate(self._specs):
+            arrow = {"asc": " ▲", "desc": " ▼"}.get(self._ordering_cols.get(i + 1), "")
+            label = f"{spec.label}{arrow}"
+            width = spec.width + (2 if arrow else 0)
+            table.add_column(label, key=spec.key, width=width)
 
         for obj, cells in zip(objs, full_rows, strict=True):
             pk = str(obj.pk)
@@ -468,22 +575,62 @@ class ChangelistScreen(Screen):
             self._reset_request_and_rebuild()
 
     def action_page_next(self) -> None:
-        changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query_params
-        )
+        try:
+            changelist = _build_changelist(
+                self.overlay.model_admin, self.request, query=self.query_params
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._notify_error("Could not page", exc)
+            return
         page = getattr(changelist, "page_num", 1)
         if page < changelist.paginator.num_pages:
             self.query_params["p"] = page + 1
             self._reset_request_and_rebuild()
 
     def action_cycle_sort(self) -> None:
-        table = self.query_one("#changelist-table", DataTable)
-        if table.cursor_column is None:
+        """Keyboard sort. The row cursor has no column, so `s` cycles the sort
+        across the *sortable* columns and direction:
+        unsorted → col ▲ → col ▼ → next sortable col → … → unsorted.
+        (Click a column header to sort it directly — the Django way.)"""
+        positions = sorted(self._sortable_positions)
+        if not positions:
             return
-        col_index = table.cursor_column
-        if col_index == 0:
-            return
-        self._sort_by_column_index(col_index)
+        col, descending = self._current_sort()
+        if col is None or col not in positions:
+            self.query_params["o"] = str(positions[0])
+        elif not descending:
+            self.query_params["o"] = f"-{col}"
+        else:
+            later = [p for p in positions if p > col]
+            if later:
+                self.query_params["o"] = str(later[0])
+            else:
+                self.query_params.pop("o", None)
+        self._reset_request_and_rebuild()
+        self._focus_table()
+
+    def _current_sort(self) -> tuple[int | None, bool]:
+        """Parse the active `o` param → (1-based column position, descending)."""
+        order = str(self.query_params.get("o", "") or "")
+        token = order.split(".")[0].strip()
+        if not token:
+            return None, False
+        descending = token.startswith("-")
+        num = token[1:] if descending else token
+        return (int(num), descending) if num.isdigit() else (None, False)
+
+    def _sort_label(self, changelist) -> str:  # type: ignore[no-untyped-def]
+        """A human 'ordered by <column> ▲/▼' label, reflecting the effective
+        ordering (including the ModelAdmin's default `ordering`)."""
+        ordering = dict(changelist.get_ordering_field_columns())
+        if not ordering:
+            return ""
+        position, order_type = next(iter(ordering.items()))
+        columns = list(self.overlay.get_list_columns(self.request))
+        label = str(position)
+        if 1 <= position <= len(columns):
+            label = self._column_label(columns[position - 1])
+        return f"ordered by {label} {'▲' if order_type == 'asc' else '▼'}"
 
     def _sort_by_column_index(self, col_index: int) -> None:
         """Cycle ascending → descending → unsorted for the data column at
@@ -500,6 +647,13 @@ class ChangelistScreen(Screen):
         self._reset_request_and_rebuild()
 
     def action_search(self) -> None:
+        # If the persistent search bar is present, focus it (the primary search
+        # UI). Models without `search_fields` have no bar → fall back to a modal.
+        search_bar = self._search_bar()
+        if search_bar is not None:
+            search_bar.focus()
+            return
+
         def _apply(result: str | None) -> None:
             if result is None:
                 return
@@ -578,10 +732,13 @@ class ChangelistScreen(Screen):
         self._rebuild_header()
 
     def _rebuild_header(self) -> None:
-        changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query_params
-        )
-        self._refresh_header(changelist)
+        try:
+            changelist = _build_changelist(
+                self.overlay.model_admin, self.request, query=self.query_params
+            )
+            self._refresh_header(changelist)
+        except Exception as exc:  # noqa: BLE001
+            self._notify_error("Could not refresh", exc)
 
     def _refresh_selection_indicator(
         self,
@@ -697,13 +854,17 @@ class ChangelistScreen(Screen):
 
     def on_screen_resume(self) -> None:
         """Refresh after returning from a detail / action / confirm screen."""
-        if self.selected_pks:
-            qs = self.overlay.model_admin.get_queryset(self.request)
-            existing = set(
-                str(pk)
-                for pk in qs.filter(pk__in=self.selected_pks).values_list(
-                    "pk", flat=True
+        try:
+            if self.selected_pks:
+                qs = self.overlay.model_admin.get_queryset(self.request)
+                existing = set(
+                    str(pk)
+                    for pk in qs.filter(pk__in=self.selected_pks).values_list(
+                        "pk", flat=True
+                    )
                 )
-            )
-            self.selected_pks &= existing
+                self.selected_pks &= existing
+        except Exception:  # noqa: BLE001 — stale selection cleanup is best-effort
+            self.selected_pks.clear()
         self._reset_request_and_rebuild()
+        self.call_after_refresh(self._focus_table)

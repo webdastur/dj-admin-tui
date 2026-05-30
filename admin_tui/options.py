@@ -1,9 +1,8 @@
 """TuiAdmin — per-model overlay base class, plus the `@register` decorator.
 
-Public API (Constitution V). The full contract is in
-specs/.../contracts/public-api.md § 2 and data-model.md § 3.
+Public API. The full contract is in docs/api.md and docs/extending.md.
 
-Defaults travel the extension path (Constitution IV): a model with no
+Defaults travel the extension path: a model with no
 explicit overlay is wrapped in a `TuiAdmin` instance synthesised from its
 `ModelAdmin` — same class, same code path as user-written overlays.
 """
@@ -31,7 +30,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class BoundCellValue:
-    """Return value of `TuiAdmin.render_cell(...)`. See data-model.md § 5."""
+    """Return value of `TuiAdmin.render_cell(...)`."""
 
     display: str
     sort_key: Any = None

@@ -5,7 +5,7 @@ and theme, and the cumulative messages-log + compat report. Created by the
 management command (`admin_tui/management/commands/admin_tui.py`) after
 `--user` is resolved, and passed to `AdminTuiApp(session=...)`.
 
-Internal — see data-model.md § 1 for the contract.
+Internal — see docs/architecture.md.
 """
 
 from __future__ import annotations

@@ -1,11 +1,9 @@
 """Audit logging — pass-through to ModelAdmin's own helpers.
 
-SC-004 requires "user, action flag, content type, and change message
-match those the web admin would produce for the same inputs." The only
-way to satisfy that is to call the admin's own `log_*` helpers and
-`construct_change_message`. We never construct `LogEntry` rows directly.
-
-See research.md § R7.
+The user, action flag, content type, and change message must match what the
+web admin produces for the same inputs. The only way to satisfy that is to
+call the admin's own `log_*` helpers and `construct_change_message`; we never
+construct `LogEntry` rows directly.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Field-widget registry contract (FR-025, data-model.md § 4).
+"""Field-widget registry contract.
 
 Pins:
   - MRO walk: a subclass of a registered Field type inherits the parent's widget.

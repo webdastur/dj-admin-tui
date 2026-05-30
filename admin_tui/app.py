@@ -2,7 +2,7 @@
 
 Subclass to reskin or extend wholesale. Selected per-project via
 `ADMIN_TUI["APP_CLASS"]` or per-invocation via `--app`. See
-contracts/public-api.md § 5 for the subclass contract.
+docs/api.md for the subclass contract.
 
 Module-level imports deliberately avoid `admin_tui.screens.*` — those are
 Phase 3 territory and are loaded lazily in `on_mount()` so the package
@@ -61,6 +61,9 @@ class AdminTuiApp(App):
 
         register_bundled_themes(self)
         self.theme = resolve_theme_name(session)
+        # A Django-admin-style window title (the Header shows this).
+        self.title = "Django administration"
+        self.sub_title = getattr(session.user, "username", "") or ""
 
     def on_mount(self) -> None:
         # Lazy import — screens land in Phase 3 (T049/T050).
@@ -71,7 +74,7 @@ class AdminTuiApp(App):
     def action_show_help(self) -> None:
         self.notify(
             "Press q to quit. Arrow keys + Enter to navigate. "
-            "See docs/quickstart.md for the full keymap.",
+            "See docs/usage.md for the full keymap.",
             title="admin_tui",
         )
 

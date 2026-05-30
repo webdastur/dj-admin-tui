@@ -3,7 +3,7 @@
 `get_changelist_instance` is the documented, version-stable way to build a
 `ChangeList` for the active Django version. We never instantiate
 `ChangeList` directly — its `__init__` signature has changed between
-Django releases (research.md § R4).
+Django releases.
 
 Callers pass a `query` dict whose keys are Django's standard changelist
 parameters (`q` for search, `p` for page, `o` for ordering, plus the

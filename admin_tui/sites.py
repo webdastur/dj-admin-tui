@@ -6,7 +6,7 @@ Mirrors `django.contrib.admin.site` in shape: a `register()` method, a
 defaults travel the same code path as third-party overlays (Constitution
 Principle IV).
 
-See data-model.md § 2 and research.md § R9 for the contract.
+See docs/extending.md for the contract.
 """
 
 from __future__ import annotations
@@ -143,8 +143,8 @@ class TuiSite:
         except KeyError as exc:
             raise ImproperlyConfigured(
                 f"{model.__module__}.{model.__name__} is not registered "
-                f"with django.contrib.admin.site. The TUI mirrors the admin "
-                f"registry — see specs/.../spec.md § Assumptions."
+                f"with django.contrib.admin.site. The TUI only surfaces "
+                f"models registered with the web admin."
             ) from exc
 
 

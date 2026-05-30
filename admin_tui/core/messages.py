@@ -6,7 +6,7 @@ requires `request._messages` to be a `BaseStorage` subclass. We want every
 captured so the TUI can surface them — without ever touching cookies, the
 session, or a real response.
 
-See research.md § R3 for the design rationale.
+See docs/architecture.md for the design rationale.
 """
 
 from __future__ import annotations

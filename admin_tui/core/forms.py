@@ -3,7 +3,7 @@
 `ModelAdmin.get_form(request, obj, change)` is the admin's authoritative
 form factory. It honors `formfield_overrides`, `radio_fields`,
 `readonly_fields`, and every custom `clean_*` / `clean` method declared
-on the form. We never reimplement that surface (research.md § R5).
+on the form. We never reimplement that surface.
 
 For the TUI we receive form-shaped data from the active screen's widgets
 and feed it back through the same form for validation, so `is_valid()`

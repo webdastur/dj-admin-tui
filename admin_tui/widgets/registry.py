@@ -1,6 +1,6 @@
 """FieldWidgetRegistry — maps model-field classes to Textual widget factories.
 
-Resolution order (per FR-025 / data-model.md § 4):
+Resolution order:
   1. If the calling overlay has `field_widgets[Field]`, use it.
   2. Walk `type(bound_field.field).__mro__` against the global registry;
      the first match wins. (This is what makes a user subclass of

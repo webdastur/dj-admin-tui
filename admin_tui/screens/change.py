@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import (
@@ -43,6 +43,8 @@ from admin_tui.core.forms import (
     _iter_bound_fields,
     _readonly_field_names,
 )
+from admin_tui.core.request import build_request
+from admin_tui.screens.action_confirm import DELETE_SENTINEL, ActionConfirmScreen
 from admin_tui.widgets.registry import field_widgets
 
 if TYPE_CHECKING:
@@ -63,20 +65,39 @@ class ChangeScreen(Screen):
         Binding("q", "back", "Back", show=True),
         Binding("e", "edit", "Edit", show=True),
         Binding("ctrl+s", "save", "Save", show=True),
+        Binding("d", "delete", "Delete", show=False),
         Binding("escape", "back", "Cancel", show=False),
     ]
 
     DEFAULT_CSS = """
+    ChangeScreen #change-breadcrumb {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
     ChangeScreen #detail-body {
         height: 1fr;
         padding: 1 2;
     }
+    ChangeScreen #detail-heading {
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    /* Django-style label-left / widget-right field rows. */
     ChangeScreen .field-row {
+        layout: horizontal;
         height: auto;
-        padding: 0 0 1 0;
+        margin-bottom: 1;
     }
     ChangeScreen .field-label {
+        width: 22;
         color: $text-muted;
+        text-align: right;
+        padding: 0 2 0 0;
+    }
+    ChangeScreen .field-widget {
+        width: 1fr;
+        height: auto;
     }
     ChangeScreen .field-error {
         color: $error;
@@ -90,9 +111,42 @@ class ChangeScreen(Screen):
     }
     ChangeScreen .fieldset {
         margin-bottom: 1;
+        border-top: solid $primary;
+        padding-top: 1;
     }
-    ChangeScreen Button {
-        margin-right: 1;
+    ChangeScreen .fieldset-name {
+        text-style: bold;
+        color: $accent;
+    }
+    /* Django submit row: solid Save, neutral Cancel, red Delete (pushed right). */
+    ChangeScreen #form-buttons {
+        height: auto;
+        margin-top: 1;
+        padding: 1 0 0 0;
+        border-top: solid $primary;
+    }
+    ChangeScreen #form-buttons Button {
+        height: 3;
+        min-width: 0;
+        margin-right: 2;
+        border: none;
+    }
+    ChangeScreen #save-button, ChangeScreen #save-add-button,
+    ChangeScreen #save-continue-button {
+        background: $primary;
+        color: $text;
+    }
+    ChangeScreen #cancel-button {
+        background: $surface;
+        color: $text;
+    }
+    ChangeScreen #submit-spacer {
+        width: 1fr;
+        height: 1;
+    }
+    ChangeScreen #delete-button {
+        background: $error;
+        color: $text;
     }
     """
 
@@ -124,18 +178,38 @@ class ChangeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
+        yield Static(self._breadcrumb(), id="change-breadcrumb")
         with VerticalScroll(id="detail-body"):
             yield Static(self._heading(), id="detail-heading")
-            yield Static("", id="non-field-errors", classes="non-field-error")
+            if self.mode in ("add", "edit"):
+                # Only the editable modes have a (hidden-until-populated) error
+                # banner — view mode must never show an empty error bar.
+                errors = Static("", id="non-field-errors", classes="non-field-error")
+                errors.display = False
+                yield errors
             yield from self._compose_body()
             if self.mode in ("add", "edit"):
-                with Vertical(id="form-buttons"):
-                    yield Button("Save", id="save-button", variant="primary")
+                with Horizontal(id="form-buttons"):
+                    yield Button("Save", id="save-button")
+                    yield Button("Save and add another", id="save-add-button")
+                    yield Button("Save and continue editing", id="save-continue-button")
                     yield Button("Cancel", id="cancel-button")
+                    if self.mode == "edit" and self.overlay.has_delete_permission(
+                        self.request, self.obj
+                    ):
+                        yield Static(id="submit-spacer")
+                        yield Button("Delete", id="delete-button")
         yield Footer()
 
     def on_mount(self) -> None:
         self._refresh_non_field_errors()
+
+    def _breadcrumb(self) -> str:
+        meta = self.overlay.model_admin.model._meta
+        app_label = meta.app_config.verbose_name if meta.app_config else meta.app_label
+        tail = "Add" if self.mode == "add" else (str(self.obj) if self.obj else "")
+        crumb = f"Home › {app_label} › {meta.verbose_name_plural}"
+        return f"{crumb} › {tail}" if tail else crumb
 
     # ---- compose helpers ----------------------------------------------
 
@@ -239,18 +313,29 @@ class ChangeScreen(Screen):
             yield Static(self._format_field_value(name), classes="field-row")
             return
         bound = self.form[name]
-        with Vertical(classes="field-row"):
-            yield Static(f"[dim]{bound.label}:[/]", classes="field-label")
-            if name in self._readonly:
-                # Render the current value as plain text — no widget.
-                yield Static(self._readonly_display(bound), classes="readonly")
-            else:
-                factory = field_widgets.resolve(bound, self.overlay)
-                widget = factory(bound)
-                widget.id = f"field-{name}"
-                self._widgets[name] = widget
-                yield widget
-            yield Static("", id=f"err-{name}", classes="field-error")
+        # Django layout: label on the left, the widget (+ inline error) on the
+        # right.
+        with Horizontal(classes="field-row"):
+            yield Static(f"{bound.label}:", classes="field-label")
+            with Vertical(classes="field-widget"):
+                if name in self._readonly:
+                    # Render the current value as plain text — no widget.
+                    yield Static(self._readonly_display(bound), classes="readonly")
+                else:
+                    # Building a widget can hit the DB (FK/M2M option queries).
+                    # On failure, render read-only rather than crash the form.
+                    try:
+                        factory = field_widgets.resolve(bound, self.overlay)
+                        widget = factory(bound)
+                        widget.id = f"field-{name}"
+                        self._widgets[name] = widget
+                        yield widget
+                    except Exception as exc:  # noqa: BLE001
+                        yield Static(
+                            f"[i](unavailable: {type(exc).__name__})[/]",
+                            classes="readonly",
+                        )
+                yield Static("", id=f"err-{name}", classes="field-error")
 
     def _readonly_display(self, bound: "BoundField") -> str:
         v = bound.value()
@@ -271,10 +356,10 @@ class ChangeScreen(Screen):
     def _heading(self) -> str:
         verbose = self.overlay.model_admin.model._meta.verbose_name
         if self.mode == "add":
-            return f"[b]Add {verbose}[/]"
+            return f"Add {verbose}"
         if self.mode == "edit":
-            return f"[b]Edit {verbose}[/]: {self.obj}"
-        return f"[b]{verbose}[/]: {self.obj}"
+            return f"Change {verbose}: {self.obj}"
+        return f"{verbose}: {self.obj}"
 
     def _format_field_value(self, field_name: Any) -> str:
         if isinstance(field_name, (list, tuple)):
@@ -288,20 +373,29 @@ class ChangeScreen(Screen):
     # ---- save flow -----------------------------------------------------
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save-button":
+        bid = event.button.id
+        if bid == "save-button":
             self.action_save()
-        elif event.button.id == "cancel-button":
+        elif bid == "save-add-button":
+            self.action_save_add_another()
+        elif bid == "save-continue-button":
+            self.action_save_continue()
+        elif bid == "delete-button":
+            self.action_delete()
+        elif bid == "cancel-button":
             self.action_back()
 
-    def action_save(self) -> None:
+    def _do_save(self) -> Any | None:
+        """Validate + persist. Returns the saved object, or None if the form was
+        invalid or the save errored (in which case the operator stays here)."""
         if self.mode == "view":
-            return
+            return None
         if self.mode == "add" and not self.overlay.has_add_permission(self.request):
-            return
+            return None
         if self.mode == "edit" and not self.overlay.has_change_permission(
             self.request, self.obj
         ):
-            return
+            return None
 
         data = self._gather_data()
         # Re-bind the form with the gathered data so `is_valid()` runs.
@@ -311,33 +405,101 @@ class ChangeScreen(Screen):
         if not bound_form.is_valid():
             self.form = bound_form
             self._render_errors()
-            return
+            return None
 
         is_add = self.mode == "add"
-        new_obj = bound_form.save(commit=False)
-        self.overlay.before_save(self.request, new_obj, created=is_add)
-        # Mirror django.contrib.admin's _changeform_view sequence:
-        self.overlay.model_admin.save_model(
-            self.request, new_obj, bound_form, change=not is_add
-        )
-        self.overlay.model_admin.save_related(
-            self.request, bound_form, [], change=not is_add
-        )
-
-        change_message = _change_message(
-            self.overlay.model_admin, self.request, bound_form, [], add=is_add
-        )
-        if is_add:
-            _log_addition(
-                self.overlay.model_admin, self.request, new_obj, change_message
+        # The save itself can fail at the DB layer (constraints, missing table,
+        # …). Surface it as a notification and stay on the form — never crash.
+        try:
+            new_obj = bound_form.save(commit=False)
+            self.overlay.before_save(self.request, new_obj, created=is_add)
+            # Mirror django.contrib.admin's _changeform_view sequence:
+            self.overlay.model_admin.save_model(
+                self.request, new_obj, bound_form, change=not is_add
             )
-        else:
-            _log_change(
-                self.overlay.model_admin, self.request, new_obj, change_message
+            self.overlay.model_admin.save_related(
+                self.request, bound_form, [], change=not is_add
             )
 
-        self.overlay.after_save(self.request, new_obj, created=is_add)
+            change_message = _change_message(
+                self.overlay.model_admin, self.request, bound_form, [], add=is_add
+            )
+            if is_add:
+                _log_addition(
+                    self.overlay.model_admin, self.request, new_obj, change_message
+                )
+            else:
+                _log_change(
+                    self.overlay.model_admin, self.request, new_obj, change_message
+                )
+
+            self.overlay.after_save(self.request, new_obj, created=is_add)
+        except Exception as exc:  # noqa: BLE001 — last-resort UI guard
+            self.app.notify(
+                f"Save failed: {type(exc).__name__}: {exc}",
+                title="Error",
+                severity="error",
+                timeout=10,
+            )
+            return None
+        return new_obj
+
+    def action_save(self) -> None:
+        if self._do_save() is not None:
+            self.app.pop_screen()
+
+    def action_save_add_another(self) -> None:
+        if self._do_save() is None:
+            return
         self.app.pop_screen()
+        req = build_request(self.session.user)
+        req._tui_session = self.session
+        screen_cls = self.app.screen_for_detail(self.overlay, req, None)
+        self.app.push_screen(
+            screen_cls(
+                session=self.session, overlay=self.overlay, request=req,
+                obj=None, mode="add",
+            )
+        )
+
+    def action_save_continue(self) -> None:
+        saved = self._do_save()
+        if saved is None:
+            return
+        self.app.pop_screen()
+        req = build_request(self.session.user)
+        req._tui_session = self.session
+        try:
+            obj = self.overlay.model_admin.get_queryset(req).get(pk=saved.pk)
+        except Exception:  # noqa: BLE001
+            return
+        screen_cls = self.app.screen_for_detail(self.overlay, req, obj)
+        self.app.push_screen(
+            screen_cls(
+                session=self.session, overlay=self.overlay, request=req,
+                obj=obj, mode="edit",
+            )
+        )
+
+    def action_delete(self) -> None:
+        if self.mode != "edit" or self.obj is None:
+            return
+        if not self.overlay.has_delete_permission(self.request, self.obj):
+            return
+        req = build_request(self.session.user)
+        req._tui_session = self.session
+        queryset = self.overlay.model_admin.get_queryset(req).filter(pk=self.obj.pk)
+        self.app.push_screen(
+            ActionConfirmScreen(
+                session=self.session,
+                overlay=self.overlay,
+                request=req,
+                action_name=DELETE_SENTINEL,
+                action_label="Delete",
+                queryset=queryset,
+                kind="delete",
+            )
+        )
 
     def action_edit(self) -> None:
         if self.mode != "view":
@@ -360,6 +522,21 @@ class ChangeScreen(Screen):
 
     def action_back(self) -> None:
         self.app.pop_screen()
+
+    def on_screen_resume(self) -> None:
+        """After a delete confirmation pops back here, if the object is gone,
+        return to the changelist instead of showing a stale detail."""
+        if self.mode == "edit" and self.obj is not None:
+            try:
+                exists = (
+                    self.overlay.model_admin.get_queryset(self.request)
+                    .filter(pk=self.obj.pk)
+                    .exists()
+                )
+            except Exception:  # noqa: BLE001
+                exists = True
+            if not exists:
+                self.app.pop_screen()
 
     # ---- data gathering + error rendering -----------------------------
 
@@ -389,8 +566,11 @@ class ChangeScreen(Screen):
     def _refresh_non_field_errors(self) -> None:
         if self.form is None:
             return
+        try:
+            target = self.query_one("#non-field-errors", Static)
+        except Exception:
+            return  # view mode has no error banner
         non_field = self.form.non_field_errors() if self.form.is_bound else []
-        target = self.query_one("#non-field-errors", Static)
         if non_field:
             target.update(" · ".join(non_field))
             target.display = True

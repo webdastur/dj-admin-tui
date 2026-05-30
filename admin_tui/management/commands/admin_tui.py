@@ -1,6 +1,6 @@
 """manage.py admin_tui — the only externally observable entry point.
 
-Implements contracts/cli.md exactly:
+The CLI entry point (see docs/cli.md):
 
   --user USERNAME    resolved per the rules below; default = lone superuser
   --app DOTTED       AdminTuiApp subclass to launch (overrides settings)
@@ -141,7 +141,7 @@ class Command(BaseCommand):
 
 
 def _resolve_user(requested: str | None) -> Any:
-    """Resolve `--user` per contracts/cli.md. Exits the process on failure."""
+    """Resolve `--user`. Exits the process on failure."""
     User = get_user_model()
 
     if requested is not None:

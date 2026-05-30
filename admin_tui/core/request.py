@@ -3,7 +3,7 @@
 The TUI never receives a real HTTP request, but `ModelAdmin` methods read
 `request.user`, `request.GET`, and `request._messages` (via `message_user`).
 A `RequestFactory`-backed request gives us a real `HttpRequest` carrying the
-session user and a capturing messages backend — see research.md § R3.
+session user and a capturing messages backend.
 
 This is the single choke point through which every Constitution-II
 permission check and audit attribution flows.

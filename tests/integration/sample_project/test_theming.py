@@ -36,11 +36,11 @@ async def _open_showcase(pilot) -> ChangelistScreen:
 
 
 @pytest.mark.django_db
-async def test_default_theme_is_django(superuser, showcases):
+async def test_default_theme_is_django_dark(superuser, showcases):
     session = TuiSession(user=superuser, app_class=AdminTuiApp)  # theme_name=None
     async with AdminTuiApp(session=session).run_test(size=(120, 30)) as pilot:
         await pilot.pause()
-        assert pilot.app.theme == "django"
+        assert pilot.app.theme == "django-dark"
 
 
 @pytest.mark.django_db
@@ -63,7 +63,7 @@ async def test_theme_switch_changes_look_not_data(superuser, showcases):
         pks_neutral = set(screen._full_cells.keys())
         theme_b = pilot.app.theme
 
-    assert theme_a == "django"
+    assert theme_a == "django-dark"
     assert theme_b == "textual-dark"
     assert theme_a != theme_b  # the look changed
     assert pks_django == pks_neutral  # the data did NOT (SC-004)

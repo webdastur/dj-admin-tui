@@ -5,7 +5,7 @@ and raises `ImproperlyConfigured` on unknown keys or invalid values. The
 loaded snapshot is frozen on `_loaded` — no code reads `settings.ADMIN_TUI`
 after `ready()` (so tests mutating settings mid-run get a consistent view).
 
-See contracts/settings.md for the per-key contract.
+See docs/configuration.md for the per-key contract.
 """
 
 from __future__ import annotations

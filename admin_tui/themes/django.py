@@ -39,3 +39,26 @@ DJANGO_THEME = Theme(
         "footer-key-foreground": "#417690",
     },
 )
+
+#: The Django admin **dark** palette (the admin's own dark mode), the default
+#: look — high-contrast dark surfaces with the admin's blue/teal accents.
+DJANGO_DARK_THEME = Theme(
+    name="django-dark",
+    primary="#79aec8",
+    secondary="#417690",
+    accent="#f5dd5d",
+    foreground="#e6e6e6",
+    background="#121212",
+    surface="#1e2226",
+    panel="#264b5d",
+    success="#8fd14f",
+    warning="#efb80b",
+    error="#e9573f",
+    dark=True,
+    variables={
+        "block-cursor-foreground": "#0c1116",
+        "block-cursor-background": "#79aec8",
+        "footer-key-foreground": "#79aec8",
+        "input-selection-background": "#417690 60%",
+    },
+)

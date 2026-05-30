@@ -1,9 +1,9 @@
-"""Admin action runner — Constitution I + FR-019 error-path contract.
+"""Admin action runner — reuse the admin's actions + an error-path contract.
 
 `_run_action(overlay, request, action_name, queryset)` calls the action
 callable that the registered `ModelAdmin` exposes via `get_actions(request)`.
 
-FR-019 obligations (the C1 remediation from /speckit-analyze):
+Error-path obligations:
   * `before_action(...)` fires unconditionally before the action call.
   * The action call is wrapped in try/except (Exception, not BaseException
     — KeyboardInterrupt/SystemExit propagate).

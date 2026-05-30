@@ -1,6 +1,6 @@
 """Bundled Textual themes + appearance resolution (v2 / FR-015..018).
 
-Two-layer theming (see contracts/theming.md):
+Two-layer theming (see docs/theming.md):
   1. a named ``textual.theme.Theme`` selected by ``ADMIN_TUI["THEME_NAME"]``
      (the palette layer), defaulting to the bundled ``django`` theme;
   2. the existing ``ADMIN_TUI["THEME"]`` ``.tcss`` override layered on top.
@@ -14,19 +14,23 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from admin_tui.themes.django import DJANGO_THEME
+from admin_tui.themes.django import DJANGO_DARK_THEME, DJANGO_THEME
 
 if TYPE_CHECKING:
     from admin_tui._internal.session import TuiSession
     from admin_tui.app import AdminTuiApp
 
-#: Default theme name applied when ``THEME_NAME`` is unset.
-DEFAULT_THEME_NAME = "django"
+#: Default theme name applied when ``THEME_NAME`` is unset — the Django admin
+#: **dark** palette (high-contrast dark mode is the default look).
+DEFAULT_THEME_NAME = "django-dark"
 #: A neutral fallback (a Textual built-in, re-exposed by name).
 NEUTRAL_THEME_NAME = "textual-dark"
 
-#: Themes this package ships, by name.
-BUNDLED_THEMES = {DJANGO_THEME.name: DJANGO_THEME}
+#: Themes this package ships, by name (dark default + the light admin palette).
+BUNDLED_THEMES = {
+    DJANGO_DARK_THEME.name: DJANGO_DARK_THEME,
+    DJANGO_THEME.name: DJANGO_THEME,
+}
 
 
 def register_bundled_themes(app: "AdminTuiApp") -> None:

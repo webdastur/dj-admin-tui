@@ -109,6 +109,34 @@ async def test_filter_sidebar_shown_and_matches_web_admin(superuser, showcases):
 
 
 @pytest.mark.django_db
+async def test_search_bar_present_for_searchable_model(superuser, showcases):
+    from textual.widgets import Input
+
+    session = TuiSession(user=superuser, app_class=AdminTuiApp)
+    async with AdminTuiApp(session=session).run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        await _open_showcase(pilot)
+        # ShowcaseAdmin declares search_fields → a persistent search bar shows.
+        bar = pilot.app.screen.query_one("#search-bar", Input)
+        assert bar is not None
+
+
+@pytest.mark.django_db
+async def test_sort_indicator_appears_on_active_column(superuser, showcases):
+    session = TuiSession(user=superuser, app_class=AdminTuiApp)
+    async with AdminTuiApp(session=session).run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        screen = await _open_showcase(pilot)
+        screen._sort_by_column_index(1)  # sort by the first data column
+        await pilot.pause()
+        table = pilot.app.screen.query_one("#changelist-table", DataTable)
+        labels = [str(c.label) for c in table.ordered_columns]
+        assert any("▲" in lbl or "▼" in lbl for lbl in labels), (
+            "no visible sort indicator on the active column"
+        )
+
+
+@pytest.mark.django_db
 async def test_narrow_terminal_scrolls_without_dropping_columns(superuser, showcases):
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(50, 20)) as pilot:
