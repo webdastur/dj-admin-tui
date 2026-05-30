@@ -10,9 +10,31 @@ behaviour on top of this admin.
 
 from __future__ import annotations
 
+from django import forms
 from django.contrib import admin, messages
 
 from sample_project.library.models import Author, Book, Tag
+
+
+class BookForm(forms.ModelForm):
+    """Admin form for Book that demonstrates a custom validator.
+
+    Used by tests/integration/sample_project/test_crud.py to exercise
+    FR-013 (a `clean_*` rejection is surfaced + blocks save) without
+    leaking test-only logic into production code.
+    """
+
+    class Meta:
+        model = Book
+        fields = "__all__"
+
+    def clean_title(self):
+        title = self.cleaned_data["title"]
+        if title.strip().lower() == "forbidden":
+            raise forms.ValidationError(
+                "The word 'forbidden' is reserved — pick another title."
+            )
+        return title
 
 
 @admin.action(description="Mark selected books as featured")
@@ -37,6 +59,7 @@ def archive_selected_action(modeladmin, request, queryset):  # type: ignore[no-u
 
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
+    form = BookForm
     list_display = ("title", "author", "published", "featured", "archived")
     list_filter = ("featured", "archived", "published")
     search_fields = ("title", "author__name")

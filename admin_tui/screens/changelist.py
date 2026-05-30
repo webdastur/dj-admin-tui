@@ -56,6 +56,7 @@ class ChangelistScreen(Screen):
         Binding("q", "back", "Back", show=True),
         Binding("/", "search", "Search", show=True),
         Binding("s", "cycle_sort", "Sort", show=True),
+        Binding("a", "add", "Add", show=True),
         Binding("pageup", "page_prev", "PgUp", show=False),
         Binding("pagedown", "page_next", "PgDn", show=False),
         Binding("enter", "open_detail", "Open", show=False),
@@ -203,6 +204,22 @@ class ChangelistScreen(Screen):
         self.app.push_screen(
             _SearchModal(initial=str(self.query.get("q", ""))),
             _apply,
+        )
+
+    def action_add(self) -> None:
+        if not self.overlay.has_add_permission(self.request):
+            return
+        detail_request = build_request(self.session.user)
+        detail_request._tui_session = self.session
+        screen_cls = self.app.screen_for_detail(self.overlay, detail_request, None)
+        self.app.push_screen(
+            screen_cls(
+                session=self.session,
+                overlay=self.overlay,
+                request=detail_request,
+                obj=None,
+                mode="add",
+            )
         )
 
     def action_open_detail(self) -> None:
