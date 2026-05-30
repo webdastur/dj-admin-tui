@@ -24,7 +24,7 @@ _DEFAULTS: dict[str, Any] = {
     "THEME_NAME": None,
     "THEME": None,
     "AUTODISCOVER": True,
-    "COMPAT_WARNINGS": True,
+    "COMPAT_WARNINGS": False,
 }
 
 _VALID_KEYS = frozenset(_DEFAULTS)

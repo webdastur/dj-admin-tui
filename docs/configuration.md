@@ -12,7 +12,7 @@ ADMIN_TUI = {
     "THEME_NAME": None,                         # bundled/registered theme name
     "THEME": None,                              # path to a .tcss override
     "AUTODISCOVER": True,                        # discover `tui.py` modules
-    "COMPAT_WARNINGS": True,                      # warn on unsupported admin overrides
+    "COMPAT_WARNINGS": False,                     # FYI when an admin mounts extra pages
 }
 ```
 
@@ -25,7 +25,7 @@ ADMIN_TUI = {
 | `THEME_NAME` | str / `None` | `None` → `"django-dark"` | Selects the colour theme (palette). Must name a registered theme. Overridable with `--theme-name`. See [theming.md](./theming.md). |
 | `THEME` | path / `None` | `None` | A Textual `.tcss` file layered on top of the theme. Overridable with `--theme`. |
 | `AUTODISCOVER` | bool | `True` | When `False`, skip autodiscovery of `tui.py` modules. |
-| `COMPAT_WARNINGS` | bool | `True` | When `False`, suppress the one-time per-model warning about `ModelAdmin` overrides the TUI can't honour (custom `change_view`, admin templates/JS, …). |
+| `COMPAT_WARNINGS` | bool | `False` | A registered `ModelAdmin` is driven in full with no overlay — forms, fieldsets, saves, and permissions all come from it, so its add/change/delete just work. When `True`, the TUI adds a one-time per-model heads-up if the admin mounts *extra* pages via a custom `get_urls` (e.g. a report or password-change view) that have no terminal equivalent. Off by default. |
 
 ## Reading order
 

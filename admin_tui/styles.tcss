@@ -167,6 +167,47 @@ ChangeScreen .field-widget SelectionList,
 ChangeScreen .field-widget Switch {
     margin: 0;
 }
+/* Compact, Django-style fields. Textual's default Input/Select/TextArea wrap
+ * the content in a chunky "tall" border (height 3) — that bulky box is what
+ * makes the edit form look oversized. Collapse each to a flat single-row bar
+ * with a subtle surface fill; the right-aligned label column already delimits
+ * one field from the next, so the border earns nothing. Focus recolours the
+ * bar instead of re-adding the border. */
+ChangeScreen .field-widget Input {
+    border: none;
+    height: 1;
+    padding: 0 1;
+    background: $surface;
+}
+ChangeScreen .field-widget Input:focus {
+    border: none;
+    background: $panel;
+}
+ChangeScreen .field-widget Select > SelectCurrent {
+    border: none;
+    padding: 0 1;
+    background: $surface;
+}
+ChangeScreen .field-widget Select:focus > SelectCurrent {
+    border: none;
+    background: $panel;
+}
+ChangeScreen .field-widget TextArea {
+    border: none;
+    padding: 0 1;
+    height: auto;
+    min-height: 3;
+    max-height: 10;
+    background: $surface;
+}
+/* Switch carries the same tall border (3 rows) — flatten it to a one-row
+ * toggle so boolean fields sit on a single line like the web admin's
+ * checkboxes. Keep it flat on focus too, so the row doesn't jump. */
+ChangeScreen .field-widget Switch,
+ChangeScreen .field-widget Switch:focus {
+    border: none;
+    padding: 0;
+}
 ChangeScreen .field-error {
     color: $error;
     text-style: italic;
@@ -177,7 +218,12 @@ ChangeScreen .non-field-error {
     padding: 0 1;
     margin-bottom: 1;
 }
+/* `Vertical` defaults to height:1fr + overflow:hidden — left unchecked, the
+ * fieldsets divide the scroll viewport between them and clip every field after
+ * the first. `height: auto` lets each fieldset grow to all its fields, so the
+ * form stacks naturally and #detail-body scrolls when it overflows. */
 ChangeScreen .fieldset {
+    height: auto;
     margin-bottom: 1;
     border-top: solid $primary;
     padding-top: 1;

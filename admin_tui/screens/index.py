@@ -115,7 +115,7 @@ class IndexScreen(Screen):
         from admin_tui._internal import compat as compat_module
         from admin_tui.conf import _loaded
 
-        if not _loaded.get("COMPAT_WARNINGS", True):
+        if not _loaded.get("COMPAT_WARNINGS", False):
             return
         self.session.compat_report = compat_module.scan(django_admin.site)
 
@@ -146,20 +146,24 @@ class IndexScreen(Screen):
         )
 
     def _maybe_warn_compat(self, model) -> None:  # type: ignore[no-untyped-def]
-        """One-time per-session notify if `model` has unhonourable overrides."""
+        """One-time per-session FYI if `model`'s admin mounts extra pages.
+
+        The model's add/change/delete works normally here — this only flags
+        auxiliary views (custom `get_urls`) that have no terminal equivalent.
+        """
         if model in self.session.compat_warned:
             return
         overrides = self.session.compat_report.get(model)
         if not overrides:
             return
         self.session.compat_warned.add(model)
-        names = ", ".join(overrides)
         self.app.notify(
-            f"{model._meta.verbose_name} has admin overrides the TUI does "
-            f"not honour: {names}. Reproduce them via a TuiAdmin overlay.",
-            title="Compat",
-            severity="warning",
-            timeout=10,
+            f"{model._meta.verbose_name}: its add/change/delete work here as "
+            f"usual. Custom admin pages ({', '.join(overrides)}) aren't "
+            f"available in the terminal.",
+            title="Heads-up",
+            severity="information",
+            timeout=8,
         )
 
     def action_open_model(self) -> None:

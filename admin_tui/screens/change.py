@@ -261,7 +261,12 @@ class ChangeScreen(Screen):
                             f"[i](unavailable: {type(exc).__name__})[/]",
                             classes="readonly",
                         )
-                yield Static("", id=f"err-{name}", classes="field-error")
+                # Hidden until there's an error, so fields stack tightly
+                # (an always-present empty line under each field reads as a
+                # big gap — the web admin only shows the error when present).
+                err = Static("", id=f"err-{name}", classes="field-error")
+                err.display = False
+                yield err
 
     def _readonly_display(self, bound: "BoundField") -> str:
         v = bound.value()
@@ -486,8 +491,10 @@ class ChangeScreen(Screen):
             errors = self.form.errors.get(name)
             if errors:
                 err_static.update(" · ".join(errors))
+                err_static.display = True
             else:
                 err_static.update("")
+                err_static.display = False
 
     def _refresh_non_field_errors(self) -> None:
         if self.form is None:
