@@ -1,0 +1,108 @@
+[build-system]
+requires = ["hatchling>=1.29"]
+build-backend = "hatchling.build"
+
+[project]
+# TODO(PACKAGE_NAME): "django-admin-tui" is taken on PyPI. Pick a final
+# distribution name before v1.0 publish. The import name is `admin_tui` and
+# is stable regardless of the distribution name.
+name = "django-admin-tui-mvp"
+version = "0.0.0"
+description = "A terminal UI for the Django admin — browse, search, edit, and run admin actions from the terminal."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Abdulaminkhon Khaydarov", email = "webdasturuz@gmail.com" }]
+keywords = ["django", "admin", "tui", "terminal", "textual"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "django>=4.2,<7",
+    "textual>=8.2,<9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0",
+    "pytest-django>=4.12",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.14",
+]
+
+[project.urls]
+"Source" = "https://github.com/abdulaminkhon/djangotui"
+"Issues" = "https://github.com/abdulaminkhon/djangotui/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["admin_tui"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/admin_tui",
+    "/LICENSE",
+    "/README.md",
+    "/pyproject.toml",
+]
+# sample_project/ and tests/ are intentionally excluded from the wheel and
+# sdist (Constitution V — small surface; dev assets stay in the repo only).
+
+[dependency-groups]
+# PEP 735 dev group. `uv sync --dev` and `uv sync --group dev` both install it.
+dev = [
+    "pytest>=9.0",
+    "pytest-django>=4.12",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.14",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["sample_project/*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "DJ",   # flake8-django
+    "PT",   # flake8-pytest-style
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line too long — formatter handles it
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B018"]   # tests can have useless expressions
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "sample_project.sample_project.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
