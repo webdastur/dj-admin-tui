@@ -87,6 +87,32 @@ content matches what the web admin would write for the same inputs
 renamed `log_deletion(obj, repr)` to `log_deletions(queryset)`; the
 shim dispatches on `hasattr(model_admin, "log_deletions")`.
 
+## v2 — presentation, interaction & theming
+
+The v2 redesign (`specs/002-ui-redesign-django-parity/`) is presentation +
+interaction over the same data paths — it changes no admin behavior.
+
+- **Stable changelist layout** (`widgets/layout.py`): `compute_column_widths`
+  computes fixed, selection-independent column widths from the current page's
+  rows (never the full queryset), and `truncate_cell` pre-truncates each cell
+  (display-width aware). This replaces v1's content-auto-sizing + cursor
+  auto-scroll — the cause of the "cropped columns / full text on select" glitch.
+  Overflow is handled by intentional horizontal scrolling. The focused row's
+  full values are shown in a fixed footer bar (no reflow).
+- **Filter sidebar** (`widgets/filters.py`): renders Django's own
+  `ChangeList.get_filters(request)` choices and applies their `query_string`
+  verbatim — no filter logic is re-derived (Constitution I).
+- **Mouse**: single click focuses, clicking the focused row / Enter opens, a
+  checkbox-column click multi-selects, a header click sorts. All additive to the
+  keyboard bindings; distinguished from Enter via the mouse-down column.
+- **Theming** (`themes/`): a bundled `django` `textual.theme.Theme` (the admin
+  palette) is the default; `ADMIN_TUI["THEME_NAME"]` selects a registered theme
+  and the existing `ADMIN_TUI["THEME"]` `.tcss` is layered on top. No new public
+  Python name — custom themes are registered by overriding `AdminTuiApp`.
+- **Edit fix**: many-to-many fields now use a `SelectionList` (`widgets/
+  defaults/many_to_many.py`) and the save path gathers list values; nullable
+  FK/choice fields no longer crash the form. See `screens/change.py`.
+
 ## Where to look next
 
 - `specs/001-admin-tui-mvp/contracts/public-api.md` — the documented

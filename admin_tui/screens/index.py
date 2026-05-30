@@ -99,11 +99,25 @@ class IndexScreen(Screen):
         super().__init__()
         self.session = session
 
+    DEFAULT_CSS = """
+    IndexScreen #index-breadcrumb {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    IndexScreen #index-greeting {
+        height: auto;
+        padding: 0 1;
+        color: $accent;
+    }
+    """
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
+        yield Static("Home", id="index-breadcrumb")
         with Container(id="index-container"):
             yield Static(
-                f"admin_tui — running as [b]"
+                f"Django administration — running as [b]"
                 f"{getattr(self.session.user, 'username', '?')}[/]",
                 id="index-greeting",
             )

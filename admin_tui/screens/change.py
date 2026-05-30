@@ -30,6 +30,7 @@ from textual.widgets import (
     Header,
     Input,
     Select,
+    SelectionList,
     Static,
     Switch,
     TextArea,
@@ -414,19 +415,24 @@ def _detect_fk_to(inline_model, parent_model) -> str | None:  # type: ignore[no-
 def _read_widget_value(widget: Widget) -> Any:
     """Pull the user-entered value out of a Textual widget.
 
-    Handles the four default-widget types: Input, Switch, Select, TextArea.
-    Returns a string (or list of strings for multi-value widgets) suitable
-    for Django form data — `form.is_valid()` will coerce it via the field's
-    `to_python`.
+    Handles the default-widget types: Input, Switch, Select, SelectionList,
+    TextArea. Returns a string (or a list of strings for multi-value widgets
+    like M2M) suitable for Django form data — `form.is_valid()` will coerce it
+    via the field's `to_python`. A plain dict carrying a list value is read
+    back correctly by Django's `SelectMultiple.value_from_datadict` (it falls
+    back to `data.get`, which returns the list as-is).
     """
+    if isinstance(widget, SelectionList):
+        # Multi-value (M2M): list of selected pks as strings.
+        return [str(v) for v in widget.selected]
     if isinstance(widget, TextArea):
         return widget.text
     if isinstance(widget, Switch):
         return "True" if widget.value else "False"
     if isinstance(widget, Select):
-        # Select.BLANK sentinel renders as missing in form POST.
+        # Both no-selection sentinels (BLANK / NULL) render as missing in POST.
         v = widget.value
-        if v is Select.BLANK or v is None:
+        if v is None or v is Select.BLANK or v is Select.NULL:
             return ""
         return str(v)
     if isinstance(widget, Input):

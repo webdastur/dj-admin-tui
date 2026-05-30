@@ -68,6 +68,48 @@ class Book(models.Model):
         return self.title
 
 
+class Showcase(models.Model):
+    """Covers the full default-widget set for the v2 save matrix (US3) and the
+    wide-column truncation / filter tests (US1).
+
+    Intentionally additive — separate table from `Book` so v1 fixtures and
+    tests are untouched. `description` holds long values for truncation;
+    `list_filter` spans a boolean, a choices field, and an FK.
+    """
+
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("review", "In review"),
+        ("published", "Published"),
+        ("archived", "Archived"),
+    ]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="showcases",
+    )
+    tags = models.ManyToManyField(Tag, related_name="showcases", blank=True)
+    release_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    quantity = models.IntegerField(default=0)
+    price = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ("title",)
+
+    def __str__(self) -> str:
+        return self.title
+
+
 class BookChapter(models.Model):
     """Inline relation to Book — fixture for the inlines test (R15 / FR-024)."""
 

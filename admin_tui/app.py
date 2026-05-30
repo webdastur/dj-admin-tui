@@ -48,10 +48,19 @@ class AdminTuiApp(App):
     def __init__(self, *, session: "TuiSession") -> None:
         _allow_django_orm_in_async_context()
         self.session = session
-        # Apply theme before super().__init__ so Textual picks it up.
+        # The `.tcss` override is layered on top of the selected theme; set
+        # CSS_PATH before super().__init__ so Textual loads it.
         if session.theme_path is not None:
             self.CSS_PATH = str(session.theme_path)
         super().__init__()
+        # Palette layer: register the bundled themes and apply the resolved
+        # THEME_NAME (defaults to the bundled "django" theme). Subclasses may
+        # override __init__/on_mount to register additional Textual themes —
+        # no new public admin_tui name (Constitution V/VI).
+        from admin_tui.themes import register_bundled_themes, resolve_theme_name
+
+        register_bundled_themes(self)
+        self.theme = resolve_theme_name(session)
 
     def on_mount(self) -> None:
         # Lazy import — screens land in Phase 3 (T049/T050).

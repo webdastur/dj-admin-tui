@@ -37,6 +37,10 @@ class TuiSession:
     theme_path: Path | None = None
     """Resolved `--theme` path (or `ADMIN_TUI["THEME"]`); `None` for builtin."""
 
+    theme_name: str | None = None
+    """Resolved `--theme-name` (or `ADMIN_TUI["THEME_NAME"]`); `None` → the
+    bundled `django` default. Selects the Textual Theme palette (v2)."""
+
     messages_log: list[tuple[int, str, str]] = field(default_factory=list)
     """Cumulative `(level, message, extra_tags)` from every action's
     `message_user` call across the session."""

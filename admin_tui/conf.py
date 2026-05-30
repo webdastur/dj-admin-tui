@@ -21,6 +21,7 @@ from django.utils.module_loading import import_string
 _DEFAULTS: dict[str, Any] = {
     "APP_CLASS": "admin_tui.app.AdminTuiApp",
     "PAGE_SIZE": 50,
+    "THEME_NAME": None,
     "THEME": None,
     "AUTODISCOVER": True,
     "COMPAT_WARNINGS": True,
@@ -60,6 +61,22 @@ def _load() -> dict[str, Any]:
             f"ADMIN_TUI['PAGE_SIZE'] must be an int in [1, 10000], "
             f"got {page_size!r}."
         )
+
+    theme_name = merged["THEME_NAME"]
+    if theme_name is not None:
+        if not isinstance(theme_name, str):
+            raise ImproperlyConfigured(
+                f"ADMIN_TUI['THEME_NAME'] must be a str or None, "
+                f"got {theme_name!r}."
+            )
+        from admin_tui.themes import valid_theme_names
+
+        valid = valid_theme_names()
+        if theme_name not in valid:
+            raise ImproperlyConfigured(
+                f"ADMIN_TUI['THEME_NAME'] {theme_name!r} is not a registered "
+                f"theme. Valid names: {sorted(valid)}."
+            )
 
     theme = merged["THEME"]
     if theme is not None:

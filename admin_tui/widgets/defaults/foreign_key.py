@@ -22,4 +22,11 @@ def foreign_key_widget(bound_field: "BoundField") -> Select[Any]:
         for obj in queryset[:1000]:  # bound to avoid loading huge FK targets
             options.append((str(obj), obj.pk))
     current = bound_field.value()
-    return Select(options=options, value=current, allow_blank=True)
+    # Textual's Select rejects value=None and any value absent from the options.
+    # Only pass `value` when the current value is a real option (e.g. a nullable
+    # FK on an add form has no current value → leave it unselected).
+    option_values = {v for _, v in options}
+    kwargs: dict[str, Any] = {"options": options, "allow_blank": True}
+    if current in option_values:
+        kwargs["value"] = current
+    return Select(**kwargs)

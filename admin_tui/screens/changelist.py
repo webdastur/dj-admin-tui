@@ -1,29 +1,34 @@
 """ChangelistScreen — Textual DataTable backed by `ModelAdmin.get_changelist_instance`.
 
-Every state change (search query, filter toggle, sort cycle, paging)
-rebuilds the changelist by calling `_build_changelist` again. The
-`ChangeList` IS the source of truth — we never recompute filtering or
-ordering (Constitution I).
+Every state change (search query, filter toggle, sort cycle, paging) rebuilds the
+changelist by calling `_build_changelist` again. The `ChangeList` IS the source of
+truth — we never recompute filtering or ordering (Constitution I).
 
-Phase 3 (US1) landed read-only browse. Phase 5 (US3) adds:
-  - Space toggles a row's selection (tracked across pagination).
-  - `x` opens an action picker. The picker fuses admin-declared
-    actions (`ModelAdmin.get_actions(request)` minus the web admin's
-    `delete_selected`) with a TUI-managed delete entry.
-  - Confirmation goes through `ActionConfirmScreen`, which routes
-    admin actions to `_run_action(...)` (FR-019 error path) and the
-    TUI delete to `delete_queryset` + `_log_deletion`.
+v2 (UI redesign) layers presentation + interaction over the v1 behavior:
+  - Columns get **fixed, selection-independent widths** and every cell is
+    **pre-truncated** (`admin_tui.widgets.layout`), killing the v1 glitch where
+    DataTable auto-sized columns and auto-scrolled to the cursor cell (FR-001/002).
+  - A fixed footer bar previews the focused row's full (untruncated) values with
+    no reflow (FR-003).
+  - A Django-style filter sidebar (`admin_tui.widgets.filters`) renders the admin's
+    own `list_filter` choices (FR-004).
+  - Object-tools (Add) + pagination controls are clickable Buttons (FR-004/008).
+  - Mouse: single click focuses a row, clicking the focused row / Enter opens it,
+    a click on the checkbox column toggles selection, a header click sorts (FR-008).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qsl, urlparse
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
+from textual.containers import Container, Horizontal, Vertical
+from textual.coordinate import Coordinate
 from textual.screen import ModalScreen, Screen
 from textual.widgets import (
+    Button,
     DataTable,
     Footer,
     Header,
@@ -37,6 +42,13 @@ from admin_tui.core.actions import _get_actions
 from admin_tui.core.changelist import _build_changelist
 from admin_tui.core.request import build_request
 from admin_tui.screens.action_confirm import DELETE_SENTINEL, ActionConfirmScreen
+from admin_tui.widgets.filters import FilterSidebar, extract_filter_groups
+from admin_tui.widgets.layout import (
+    SELECTION_WIDTH,
+    compute_column_widths,
+    sanitize_cell,
+    truncate_cell,
+)
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -136,12 +148,51 @@ class ChangelistScreen(Screen):
     ]
 
     DEFAULT_CSS = """
+    ChangelistScreen #changelist-breadcrumb {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    ChangelistScreen #object-tools {
+        height: auto;
+        align-horizontal: right;
+        padding: 0 1;
+    }
+    ChangelistScreen #object-tools Button {
+        min-width: 10;
+    }
     ChangelistScreen #changelist-header {
         height: auto;
-        padding: 1;
+        padding: 0 1;
+    }
+    ChangelistScreen #changelist-body {
+        height: 1fr;
     }
     ChangelistScreen #changelist-table {
+        width: 1fr;
         height: 1fr;
+    }
+    ChangelistScreen #filter-sidebar {
+        width: 32;
+        height: 1fr;
+        border-left: solid $primary;
+        padding: 0 1;
+    }
+    ChangelistScreen #pagination {
+        height: auto;
+        align-horizontal: center;
+        padding: 0 1;
+    }
+    ChangelistScreen #pagination Static {
+        width: auto;
+        padding: 0 2;
+        content-align: center middle;
+    }
+    ChangelistScreen #cell-preview {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+        background: $panel;
     }
     """
 
@@ -161,35 +212,136 @@ class ChangelistScreen(Screen):
         # Selection persists across pagination + filter changes so the
         # operator can build up a selection that spans pages.
         self.selected_pks: set[str] = set()
+        # Per-rebuild caches (selection-independent).
+        self._specs: list = []
+        self._full_cells: dict[str, list[tuple[str, str]]] = {}
+        # Column under the pointer at the last mouse-down — lets us tell a
+        # mouse click on the checkbox column apart from a keyboard Enter when
+        # a RowSelected fires. `None` means "no recent mouse activation".
+        self._down_column: int | None = None
 
     # ---- mount + render ------------------------------------------------
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
+        yield Static("", id="changelist-breadcrumb")
+        with Horizontal(id="object-tools"):
+            yield Button("+ Add", id="add-button", variant="primary")
         yield Static("", id="changelist-header")
-        yield DataTable(
-            cursor_type="row",
-            zebra_stripes=True,
-            id="changelist-table",
-        )
+        with Horizontal(id="changelist-body"):
+            yield DataTable(
+                cursor_type="row",
+                zebra_stripes=True,
+                id="changelist-table",
+            )
+            yield FilterSidebar(id="filter-sidebar")
+        with Horizontal(id="pagination"):
+            yield Button("‹ Prev", id="prev-button")
+            yield Static("", id="page-indicator")
+            yield Button("Next ›", id="next-button")
+        yield Static("", id="cell-preview")
         yield Footer()
 
     def on_mount(self) -> None:
+        self._refresh_breadcrumb()
+        # Hide the Add affordance when the user can't add.
+        if not self.overlay.has_add_permission(self.request):
+            self.query_one("#add-button", Button).display = False
         self._rebuild()
+        self.query_one("#changelist-table", DataTable).focus()
+
+    def _refresh_breadcrumb(self) -> None:
+        meta = self.overlay.model_admin.model._meta
+        app_label = meta.app_config.verbose_name if meta.app_config else meta.app_label
+        crumb = f"Home › {app_label} › {meta.verbose_name_plural}"
+        self.query_one("#changelist-breadcrumb", Static).update(crumb)
+
+    def on_mouse_down(self, event) -> None:  # type: ignore[no-untyped-def]
+        """Record the column under the pointer so a click on the focused row's
+        checkbox can be told apart from a keyboard Enter (FR-008a)."""
+        meta = getattr(event.style, "meta", {}) or {}
+        if "row" in meta and "column" in meta:
+            self._down_column = meta["column"]
+        else:
+            self._down_column = None
+
+    def on_click(self, event) -> None:  # type: ignore[no-untyped-def]
+        """Mouse: a click on the checkbox column of a (non-focused) row toggles
+        its selection. Body clicks just move the cursor (focus); the focused-row
+        click is handled by RowSelected → open (FR-008a)."""
+        meta = getattr(event.style, "meta", {}) or {}
+        self._down_column = None
+        if "row" not in meta or "column" not in meta:
+            return
+        row_index = meta["row"]
+        col_index = meta["column"]
+        if row_index < 0 or col_index != 0:
+            return
+        self._toggle_at_row_index(row_index)
+        event.stop()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """DataTable emits this when Enter is pressed on a row; the screen-level
-        Enter binding never fires because the DataTable consumes the key."""
+        """Activate a row. Fired by Enter (keyboard) or clicking the focused row
+        (mouse). A mouse click on the checkbox column toggles selection instead
+        of opening (FR-008a)."""
+        down_column = self._down_column
+        self._down_column = None
+        if down_column == 0:
+            pk = event.row_key.value if event.row_key is not None else None
+            if pk is not None:
+                self._toggle_select_pk(str(pk))
+            return
         self.action_open_detail()
+
+    def _toggle_at_row_index(self, row_index: int) -> None:
+        table = self.query_one("#changelist-table", DataTable)
+        try:
+            row_key, _ = table.coordinate_to_cell_key(Coordinate(row_index, 0))
+        except Exception:
+            return
+        pk = row_key.value if row_key is not None else None
+        if pk is not None:
+            self._toggle_select_pk(str(pk))
+
+    def on_data_table_row_highlighted(
+        self, event: DataTable.RowHighlighted
+    ) -> None:
+        """Update the footer cell-preview when the cursor moves (FR-003)."""
+        pk = event.row_key.value if event.row_key is not None else None
+        self._update_preview(None if pk is None else str(pk))
+
+    def on_data_table_header_selected(
+        self, event: DataTable.HeaderSelected
+    ) -> None:
+        """Mouse: clicking a column header sorts by it (mirrors `s`)."""
+        col_index = event.column_index
+        if col_index == 0:  # selection column — not sortable
+            return
+        self._sort_by_column_index(col_index)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid == "add-button":
+            self.action_add()
+        elif bid == "prev-button":
+            self.action_page_prev()
+        elif bid == "next-button":
+            self.action_page_next()
+
+    def on_filter_sidebar_filter_chosen(
+        self, event: FilterSidebar.FilterChosen
+    ) -> None:
+        """Apply Django's own filter query string (Constitution I / FR-004)."""
+        parsed = dict(parse_qsl(urlparse(event.query_string).query))
+        self.query_params = parsed
+        self.query_params.pop("p", None)
+        self._reset_request_and_rebuild()
 
     def on_key(self, event) -> None:  # type: ignore[no-untyped-def]
         """Dispatch overlay-declared `key_bindings` from FR-024.
 
-        Textual 8.x does not expose a public per-instance `bind()` API;
-        the simplest correct path is an `on_key` handler that consults
-        the overlay's declarative slot. Default screen BINDINGS take
-        precedence so an overlay cannot accidentally shadow `q`, `/`,
-        `s`, `a`, Space, `x`, PgUp/PgDn, or Enter.
+        Default screen BINDINGS take precedence so an overlay cannot accidentally
+        shadow `q`, `/`, `s`, `a`, Space, `x`, PgUp/PgDn, or Enter.
         """
         reserved_keys = {b.key for b in self.BINDINGS}
         if event.key in reserved_keys:
@@ -212,17 +364,18 @@ class ChangelistScreen(Screen):
         )
         self._refresh_header(changelist)
         self._refresh_table(changelist)
+        self._refresh_filters(changelist)
 
     def _refresh_header(self, changelist) -> None:  # type: ignore[no-untyped-def]
         model_name = self.overlay.model_admin.model._meta.verbose_name_plural
         page = getattr(changelist, "page_num", 1)
         per_page = getattr(changelist, "list_per_page", None) or 0
         total = changelist.paginator.count
+        num_pages = changelist.paginator.num_pages
         q = self.query_params.get("q", "")
         bits = [
             f"[b]{model_name}[/]",
-            f"page {page} (×{per_page})",
-            f"total: {total}",
+            f"{total} result{'s' if total != 1 else ''} (×{per_page}/page)",
         ]
         if self.selected_pks:
             bits.append(f"selected: {len(self.selected_pks)}")
@@ -232,26 +385,62 @@ class ChangelistScreen(Screen):
         if sort:
             bits.append(f"sort: {sort}")
         self.query_one("#changelist-header", Static).update(" · ".join(bits))
+        self.query_one("#page-indicator", Static).update(
+            f"page {page} / {num_pages}"
+        )
 
     def _refresh_table(self, changelist) -> None:  # type: ignore[no-untyped-def]
         table = self.query_one("#changelist-table", DataTable)
         table.clear(columns=True)
 
-        # Leading selection-indicator column.
-        table.add_column(" ", key=SELECTION_COLUMN_KEY, width=2)
-
         columns = list(self.overlay.get_list_columns(self.request))
-        for col in columns:
-            table.add_column(self._column_label(col), key=col)
+        objs = list(changelist.result_list)
 
-        for obj in changelist.result_list:
+        # Compute the full (sanitized, untruncated) display per cell ONCE; reuse
+        # for width computation, the footer preview, and the truncated row.
+        full_rows: list[dict[str, str]] = []
+        self._full_cells = {}
+        for obj in objs:
+            pk = str(obj.pk)
+            cells: dict[str, str] = {}
+            labelled: list[tuple[str, str]] = []
+            for col in columns:
+                disp = sanitize_cell(
+                    self.overlay.render_cell(self.request, obj, col).display
+                )
+                cells[col] = disp
+                labelled.append((self._column_label(col), disp))
+            full_rows.append(cells)
+            self._full_cells[pk] = labelled
+
+        layout_cols = [(col, self._column_label(col)) for col in columns]
+        self._specs = compute_column_widths(layout_cols, full_rows)
+
+        # Leading selection-indicator column (fixed width).
+        table.add_column(" ", key=SELECTION_COLUMN_KEY, width=SELECTION_WIDTH)
+        for spec in self._specs:
+            table.add_column(spec.label, key=spec.key, width=spec.width)
+
+        for obj, cells in zip(objs, full_rows, strict=True):
             pk = str(obj.pk)
             marker = "✓" if pk in self.selected_pks else " "
             row_values = [marker]
-            for col in columns:
-                cell = self.overlay.render_cell(self.request, obj, col)
-                row_values.append(cell.display)
+            for spec in self._specs:
+                row_values.append(truncate_cell(cells[spec.key], spec.width))
             table.add_row(*row_values, key=pk)
+
+    def _refresh_filters(self, changelist) -> None:  # type: ignore[no-untyped-def]
+        sidebar = self.query_one("#filter-sidebar", FilterSidebar)
+        groups = extract_filter_groups(changelist, self.request)
+        sidebar.update_filters(groups)
+
+    def _update_preview(self, pk: str | None) -> None:
+        preview = self.query_one("#cell-preview", Static)
+        cells = self._full_cells.get(pk) if pk is not None else None
+        if not cells:
+            preview.update("")
+            return
+        preview.update(" · ".join(f"{label}: {value}" for label, value in cells))
 
     def _column_label(self, name: str) -> str:
         try:
@@ -292,10 +481,14 @@ class ChangelistScreen(Screen):
         if table.cursor_column is None:
             return
         col_index = table.cursor_column
-        # Skip the selection-indicator column (index 0) — sorting it makes
-        # no sense. The actual sort column is offset by -1.
         if col_index == 0:
             return
+        self._sort_by_column_index(col_index)
+
+    def _sort_by_column_index(self, col_index: int) -> None:
+        """Cycle ascending → descending → unsorted for the data column at
+        `col_index` (1-based against list_display; index 0 is the selection
+        column). Reuses Django's `o` query param (Constitution I)."""
         target = str(col_index)  # Django's `o` is 1-based against list_display.
         current = self.query_params.get("o", "")
         if current == target:
@@ -373,11 +566,14 @@ class ChangelistScreen(Screen):
         pk = row_key.value if row_key is not None else None
         if pk is None:
             return
+        self._toggle_select_pk(str(pk))
+
+    def _toggle_select_pk(self, pk: str) -> None:
         if pk in self.selected_pks:
             self.selected_pks.discard(pk)
         else:
             self.selected_pks.add(pk)
-        # Just refresh the indicator column + header rather than the whole table.
+        table = self.query_one("#changelist-table", DataTable)
         self._refresh_selection_indicator(table, pk)
         self._rebuild_header()
 
@@ -425,13 +621,7 @@ class ChangelistScreen(Screen):
         self.app.push_screen(_ActionPickerModal(actions), _on_pick)
 
     def _available_actions(self) -> list[tuple[str, str, str]]:
-        """Build the (kind, action_name, label) list shown in the picker.
-
-        Skip the web admin's `delete_selected` (it expects an HTTP
-        request/response cycle); offer our own TUI-managed delete instead
-        when the user has delete permission. Include the overlay's
-        `bulk_actions` as kind="tui" entries.
-        """
+        """Build the (kind, action_name, label) list shown in the picker."""
         out: list[tuple[str, str, str]] = []
         admin_actions = _get_actions(self.overlay, self.request)
         for name, (_func, _action_name, description) in admin_actions.items():
@@ -467,11 +657,7 @@ class ChangelistScreen(Screen):
         )
 
     def action_row_invoke(self, method_name: str) -> None:
-        """Dispatch an overlay's key-bound row action on the focused row.
-
-        Wraps the call in the same FR-019 spirit: any exception is
-        surfaced as a Textual notification, the screen stays mounted.
-        """
+        """Dispatch an overlay's key-bound row action on the focused row."""
         table = self.query_one("#changelist-table", DataTable)
         if table.cursor_row is None:
             self.app.notify("Move the cursor to a row first.", severity="warning")
@@ -510,16 +696,12 @@ class ChangelistScreen(Screen):
         self._rebuild()
 
     def on_screen_resume(self) -> None:
-        """Refresh after returning from a detail / action / confirm screen.
-
-        Action runs or deletes may have changed the underlying data; rebuild
-        so the operator sees the current state. Clear selections of objects
-        that no longer exist."""
-        # Drop any selected pks that no longer exist (e.g. after delete).
+        """Refresh after returning from a detail / action / confirm screen."""
         if self.selected_pks:
             qs = self.overlay.model_admin.get_queryset(self.request)
             existing = set(
-                str(pk) for pk in qs.filter(pk__in=self.selected_pks).values_list(
+                str(pk)
+                for pk in qs.filter(pk__in=self.selected_pks).values_list(
                     "pk", flat=True
                 )
             )

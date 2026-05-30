@@ -13,7 +13,7 @@ from __future__ import annotations
 from django import forms
 from django.contrib import admin, messages
 
-from sample_project.library.models import Author, Book, BookChapter, Tag
+from sample_project.library.models import Author, Book, BookChapter, Showcase, Tag
 
 
 class BookChapterInline(admin.TabularInline):
@@ -116,3 +116,29 @@ class AuthorAdmin(admin.ModelAdmin):
 class TagAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
+
+
+@admin.register(Showcase)
+class ShowcaseAdmin(admin.ModelAdmin):
+    """Full default-widget coverage for the v2 save matrix + a long
+    `description` column and `list_filter` for the layout/filter tests."""
+
+    list_display = (
+        "title",
+        "description",  # intentionally long → exercises truncation (US1)
+        "status",
+        "is_active",
+        "author",
+        "quantity",
+        "price",
+    )
+    list_filter = ("is_active", "status", "author")
+    search_fields = ("title", "description")
+    fieldsets = (
+        (None, {"fields": ("title", "description", "status")}),
+        ("Flags", {"fields": ("is_active", "is_verified")}),
+        ("Relations", {"fields": ("author", "tags")}),
+        ("Dates", {"fields": ("release_date", "created_at")}),
+        ("Data", {"fields": ("metadata", "quantity", "price")}),
+    )
+    list_per_page = 50

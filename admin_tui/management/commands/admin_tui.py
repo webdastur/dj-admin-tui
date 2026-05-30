@@ -29,7 +29,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.utils.module_loading import import_string
 
 
@@ -55,6 +55,11 @@ class Command(BaseCommand):
             "--theme",
             default=None,
             help="Path to a Textual .tcss file applied as App.CSS_PATH.",
+        )
+        parser.add_argument(
+            "--theme-name",
+            default=None,
+            help="Name of a bundled/registered theme (e.g. 'django').",
         )
         # --no-color and --force-color are provided by BaseCommand; we read
         # `options["no_color"]` in handle() (or check `self.style` directly)
@@ -107,11 +112,23 @@ class Command(BaseCommand):
                 )
                 sys.exit(5)
 
+        # --- theme-name resolution (FR-015/018) ----------------------------
+        theme_name = options["theme_name"] or conf._loaded.get("THEME_NAME")
+        if theme_name is not None:
+            from admin_tui.themes import valid_theme_names
+
+            if theme_name not in valid_theme_names():
+                _stderr(
+                    f"--theme-name {theme_name!r} is not a registered theme."
+                )
+                sys.exit(5)
+
         # --- build session and launch --------------------------------------
         session = TuiSession(
             user=user,
             app_class=app_class,
             theme_path=theme_path,
+            theme_name=theme_name,
         )
 
         try:

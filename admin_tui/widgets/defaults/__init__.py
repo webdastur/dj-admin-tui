@@ -15,6 +15,7 @@ from admin_tui.widgets.defaults.choice import choice_widget
 from admin_tui.widgets.defaults.datetime import datetime_widget
 from admin_tui.widgets.defaults.foreign_key import foreign_key_widget
 from admin_tui.widgets.defaults.json_field import json_widget
+from admin_tui.widgets.defaults.many_to_many import many_to_many_widget
 from admin_tui.widgets.defaults.numeric import numeric_widget
 from admin_tui.widgets.defaults.text import text_widget
 from admin_tui.widgets.registry import field_widgets
@@ -35,7 +36,8 @@ field_widgets.register(forms.TypedChoiceField, choice_widget)
 
 # ForeignKey / ModelChoiceField.
 field_widgets.register(forms.ModelChoiceField, foreign_key_widget)
-field_widgets.register(forms.ModelMultipleChoiceField, foreign_key_widget)
+# ManyToMany → a real multi-select (NOT the single-value FK Select).
+field_widgets.register(forms.ModelMultipleChoiceField, many_to_many_widget)
 
 # Date / Time / DateTime.
 field_widgets.register(forms.DateField, datetime_widget)
