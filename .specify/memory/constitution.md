@@ -32,6 +32,16 @@ Templates requiring updates:
   with /speckit-specify and downstream commands; ensure they state the
   Principle VII trust model and the Principle V public API surface.
 
+Pre-merge clarification (no version bump):
+- The Technical Standards "Compatibility" line originally named Django
+  (4.2) and (5.x) as parentheticals. Those examples aged within hours: on
+  the same ratification date the supported snapshot is Django 4.2 LTS +
+  5.2 LTS + 6.0 on Python 3.12+ with Textual >=8.2. Edited the line to
+  state the *rule* abstractly and add a dated *snapshot* below it, so
+  version specifics live in plan.md / pyproject.toml. No principle text
+  or obligation changed; no consumer existed yet, so the version stays at
+  1.0.0 rather than bumping for cosmetic in-flight wording.
+
 Follow-up TODOs:
 - TODO(PACKAGE_NAME): working title is "Django Admin TUI"; choose the
   PyPI distribution name before 1.0 ratification of the package itself
@@ -130,9 +140,14 @@ living documentation.
 
 ## Technical Standards & Constraints
 
-- **Compatibility:** supports the current Django LTS (4.2) and the latest stable Django
-  (5.x); Python floor tracks Django's minimum. Fast-moving dependencies (Textual,
-  Spec Kit's `specify`) are version-pinned, not floated.
+- **Compatibility:** supports the current Django LTS and the latest stable Django
+  release; the Python floor tracks Django's minimum. Fast-moving dependencies
+  (Textual, Spec Kit's `specify`) are version-pinned, not floated. Specific
+  version numbers live in `plan.md` and `pyproject.toml`, not here — this
+  document states the *rule*, the plan states the *snapshot*.
+  *Snapshot on the ratification date (2026-05-30):* Python 3.12+; Django 4.2 LTS
+  (courtesy floor, just past EOL), Django 5.2 LTS (current LTS), Django 6.0
+  (current stable); Textual `>=8.2,<9`.
 - **License:** MIT. All bundled scaffolding and generated artifacts MUST be MIT-compatible.
 - **Distribution:** a single pip-installable package; no build step that requires
   non-Python toolchains for end users.
