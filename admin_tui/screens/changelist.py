@@ -157,7 +157,7 @@ class ChangelistScreen(Screen):
         self.session = session
         self.overlay = overlay
         self.request = request
-        self.query: dict[str, Any] = dict(query or {})
+        self.query_params: dict[str, Any] = dict(query or {})
         # Selection persists across pagination + filter changes so the
         # operator can build up a selection that spans pages.
         self.selected_pks: set[str] = set()
@@ -176,36 +176,39 @@ class ChangelistScreen(Screen):
 
     def on_mount(self) -> None:
         self._rebuild()
-        self._bind_overlay_keys()
 
-    def _bind_overlay_keys(self) -> None:
-        """Register the overlay's `key_bindings` dynamically.
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """DataTable emits this when Enter is pressed on a row; the screen-level
+        Enter binding never fires because the DataTable consumes the key."""
+        self.action_open_detail()
 
-        Each entry is `(key, method_name, description)`. We bind the key
-        to `row_invoke(method_name)` which dispatches to the overlay's
-        method on the focused row.
+    def on_key(self, event) -> None:  # type: ignore[no-untyped-def]
+        """Dispatch overlay-declared `key_bindings` from FR-024.
+
+        Textual 8.x does not expose a public per-instance `bind()` API;
+        the simplest correct path is an `on_key` handler that consults
+        the overlay's declarative slot. Default screen BINDINGS take
+        precedence so an overlay cannot accidentally shadow `q`, `/`,
+        `s`, `a`, Space, `x`, PgUp/PgDn, or Enter.
         """
+        reserved_keys = {b.key for b in self.BINDINGS}
+        if event.key in reserved_keys:
+            return
         for entry in getattr(self.overlay, "key_bindings", []) or []:
-            if not entry:
+            if len(entry) < 2:
                 continue
-            if len(entry) >= 3:
-                key, method_name, description = entry[0], entry[1], entry[2]
-            elif len(entry) == 2:
-                key, method_name = entry
-                description = method_name
-            else:
+            key, method_name = entry[0], entry[1]
+            if event.key != key:
                 continue
-            # `bind` evaluates the action string at run time. Quote the
-            # method_name as a string parameter.
-            self.bind(
-                keys=key,
-                action=f"row_invoke('{method_name}')",
-                description=description,
-            )
+            if not hasattr(self.overlay, method_name):
+                continue
+            event.stop()
+            self.action_row_invoke(method_name)
+            return
 
     def _rebuild(self) -> None:
         changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query
+            self.overlay.model_admin, self.request, query=self.query_params
         )
         self._refresh_header(changelist)
         self._refresh_table(changelist)
@@ -215,7 +218,7 @@ class ChangelistScreen(Screen):
         page = getattr(changelist, "page_num", 1)
         per_page = getattr(changelist, "list_per_page", None) or 0
         total = changelist.paginator.count
-        q = self.query.get("q", "")
+        q = self.query_params.get("q", "")
         bits = [
             f"[b]{model_name}[/]",
             f"page {page} (×{per_page})",
@@ -225,7 +228,7 @@ class ChangelistScreen(Screen):
             bits.append(f"selected: {len(self.selected_pks)}")
         if q:
             bits.append(f"search: {q!r}")
-        sort = self.query.get("o", "")
+        sort = self.query_params.get("o", "")
         if sort:
             bits.append(f"sort: {sort}")
         self.query_one("#changelist-header", Static).update(" · ".join(bits))
@@ -270,18 +273,18 @@ class ChangelistScreen(Screen):
         self.app.pop_screen()
 
     def action_page_prev(self) -> None:
-        page = int(self.query.get("p", 1))
+        page = int(self.query_params.get("p", 1))
         if page > 1:
-            self.query["p"] = page - 1
+            self.query_params["p"] = page - 1
             self._reset_request_and_rebuild()
 
     def action_page_next(self) -> None:
         changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query
+            self.overlay.model_admin, self.request, query=self.query_params
         )
         page = getattr(changelist, "page_num", 1)
         if page < changelist.paginator.num_pages:
-            self.query["p"] = page + 1
+            self.query_params["p"] = page + 1
             self._reset_request_and_rebuild()
 
     def action_cycle_sort(self) -> None:
@@ -294,13 +297,13 @@ class ChangelistScreen(Screen):
         if col_index == 0:
             return
         target = str(col_index)  # Django's `o` is 1-based against list_display.
-        current = self.query.get("o", "")
+        current = self.query_params.get("o", "")
         if current == target:
-            self.query["o"] = f"-{target}"
+            self.query_params["o"] = f"-{target}"
         elif current == f"-{target}":
-            self.query.pop("o", None)
+            self.query_params.pop("o", None)
         else:
-            self.query["o"] = target
+            self.query_params["o"] = target
         self._reset_request_and_rebuild()
 
     def action_search(self) -> None:
@@ -309,14 +312,14 @@ class ChangelistScreen(Screen):
                 return
             stripped = result.strip()
             if stripped:
-                self.query["q"] = stripped
+                self.query_params["q"] = stripped
             else:
-                self.query.pop("q", None)
-            self.query.pop("p", None)
+                self.query_params.pop("q", None)
+            self.query_params.pop("p", None)
             self._reset_request_and_rebuild()
 
         self.app.push_screen(
-            _SearchModal(initial=str(self.query.get("q", ""))),
+            _SearchModal(initial=str(self.query_params.get("q", ""))),
             _apply,
         )
 
@@ -380,7 +383,7 @@ class ChangelistScreen(Screen):
 
     def _rebuild_header(self) -> None:
         changelist = _build_changelist(
-            self.overlay.model_admin, self.request, query=self.query
+            self.overlay.model_admin, self.request, query=self.query_params
         )
         self._refresh_header(changelist)
 

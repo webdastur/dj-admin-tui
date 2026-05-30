@@ -11,12 +11,26 @@ remains importable from Phase 2 onward.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from textual.app import App
 
 if TYPE_CHECKING:
     from admin_tui._internal.session import TuiSession
+
+
+def _allow_django_orm_in_async_context() -> None:
+    """Tell Django its async safety guard doesn't apply here.
+
+    Textual runs a single-threaded asyncio event loop. Django's ORM
+    raises `SynchronousOnlyOperation` from inside `async def` methods to
+    prevent concurrent ORM use across worker threads — a hazard that
+    cannot arise in our setup. We opt out so screen lifecycle methods
+    (on_mount, key handlers) can hit the DB directly via Django's sync
+    ORM, which is what every Constitution-I admin call expects.
+    """
+    os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
 
 
 class AdminTuiApp(App):
@@ -32,6 +46,7 @@ class AdminTuiApp(App):
     ]
 
     def __init__(self, *, session: "TuiSession") -> None:
+        _allow_django_orm_in_async_context()
         self.session = session
         # Apply theme before super().__init__ so Textual picks it up.
         if session.theme_path is not None:
