@@ -37,7 +37,10 @@ class BookForm(forms.ModelForm):
         return title
 
 
-@admin.action(description="Mark selected books as featured")
+@admin.action(
+    description="Mark selected books as featured",
+    permissions=["change"],
+)
 def mark_featured_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
     count = queryset.update(featured=True)
     modeladmin.message_user(
@@ -47,7 +50,10 @@ def mark_featured_action(modeladmin, request, queryset):  # type: ignore[no-unty
     )
 
 
-@admin.action(description="Archive selected books")
+@admin.action(
+    description="Archive selected books",
+    permissions=["change"],
+)
 def archive_selected_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
     count = queryset.update(archived=True)
     modeladmin.message_user(
@@ -57,13 +63,35 @@ def archive_selected_action(modeladmin, request, queryset):  # type: ignore[no-u
     )
 
 
+@admin.action(
+    description="Failing action (testing FR-019 error path)",
+    permissions=["change"],
+)
+def failing_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
+    """Exercises FR-019: emit a message, then raise.
+
+    `_run_action` must capture the message, surface the exception, and
+    NOT fire `after_action`'s success branch.
+    """
+    modeladmin.message_user(
+        request,
+        "starting…",
+        level=messages.INFO,
+    )
+    raise RuntimeError("boom")
+
+
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
     form = BookForm
     list_display = ("title", "author", "published", "featured", "archived")
     list_filter = ("featured", "archived", "published")
     search_fields = ("title", "author__name")
-    actions = ("mark_featured_action", "archive_selected_action")
+    actions = [
+        mark_featured_action,
+        archive_selected_action,
+        failing_action,
+    ]
     autocomplete_fields = ("author",)
     list_per_page = 50
 

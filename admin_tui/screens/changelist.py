@@ -5,9 +5,14 @@ rebuilds the changelist by calling `_build_changelist` again. The
 `ChangeList` IS the source of truth — we never recompute filtering or
 ordering (Constitution I).
 
-US1 (Phase 3) lands the read-only path: columns + search + filter + sort +
-pagination. US3 (Phase 5) extends this screen with multi-select and
-action dispatch.
+Phase 3 (US1) landed read-only browse. Phase 5 (US3) adds:
+  - Space toggles a row's selection (tracked across pagination).
+  - `x` opens an action picker. The picker fuses admin-declared
+    actions (`ModelAdmin.get_actions(request)` minus the web admin's
+    `delete_selected`) with a TUI-managed delete entry.
+  - Confirmation goes through `ActionConfirmScreen`, which routes
+    admin actions to `_run_action(...)` (FR-019 error path) and the
+    TUI delete to `delete_queryset` + `_log_deletion`.
 """
 
 from __future__ import annotations
@@ -16,18 +21,31 @@ from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Vertical
 from textual.screen import ModalScreen, Screen
-from textual.widgets import DataTable, Footer, Header, Input, Static
+from textual.widgets import (
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    ListItem,
+    ListView,
+    Static,
+)
 
+from admin_tui.core.actions import _get_actions
 from admin_tui.core.changelist import _build_changelist
 from admin_tui.core.request import build_request
+from admin_tui.screens.action_confirm import DELETE_SENTINEL, ActionConfirmScreen
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
 
     from admin_tui._internal.session import TuiSession
     from admin_tui.options import TuiAdmin
+
+
+SELECTION_COLUMN_KEY = "__selected__"
 
 
 class _SearchModal(ModalScreen[str]):
@@ -48,6 +66,57 @@ class _SearchModal(ModalScreen[str]):
         self.dismiss(event.value)
 
 
+class _ActionPickerItem(ListItem):
+    def __init__(self, action_name: str, label: str) -> None:
+        super().__init__(Static(label))
+        self.action_name = action_name
+        self.action_label = label
+
+
+class _ActionPickerModal(ModalScreen[tuple[str, str] | None]):
+    """Lists available actions; dismisses with (action_name, label) or None."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("enter", "select", "Select", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    _ActionPickerModal #action-picker {
+        background: $surface;
+        border: tall $primary;
+        padding: 1 2;
+        width: 60;
+        height: auto;
+        max-height: 80%;
+    }
+    """
+
+    def __init__(self, actions: list[tuple[str, str]]) -> None:
+        super().__init__()
+        self._actions = actions
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="action-picker"):
+            yield Static("[b]Choose an action[/]")
+            list_view = ListView(id="action-list")
+            yield list_view
+
+    def on_mount(self) -> None:
+        list_view = self.query_one("#action-list", ListView)
+        for name, label in self._actions:
+            list_view.append(_ActionPickerItem(name, label))
+        list_view.focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        item = event.item
+        if isinstance(item, _ActionPickerItem):
+            self.dismiss((item.action_name, item.action_label))
+
+
 class ChangelistScreen(Screen):
     """Default changelist Screen. Overlays may substitute via
     `TuiAdmin.get_changelist_screen(request)`."""
@@ -57,6 +126,8 @@ class ChangelistScreen(Screen):
         Binding("/", "search", "Search", show=True),
         Binding("s", "cycle_sort", "Sort", show=True),
         Binding("a", "add", "Add", show=True),
+        Binding("space", "toggle_select", "Select", show=True),
+        Binding("x", "open_action_picker", "Actions", show=True),
         Binding("pageup", "page_prev", "PgUp", show=False),
         Binding("pagedown", "page_next", "PgDn", show=False),
         Binding("enter", "open_detail", "Open", show=False),
@@ -85,6 +156,9 @@ class ChangelistScreen(Screen):
         self.overlay = overlay
         self.request = request
         self.query: dict[str, Any] = dict(query or {})
+        # Selection persists across pagination + filter changes so the
+        # operator can build up a selection that spans pages.
+        self.selected_pks: set[str] = set()
 
     # ---- mount + render ------------------------------------------------
 
@@ -119,6 +193,8 @@ class ChangelistScreen(Screen):
             f"page {page} (×{per_page})",
             f"total: {total}",
         ]
+        if self.selected_pks:
+            bits.append(f"selected: {len(self.selected_pks)}")
         if q:
             bits.append(f"search: {q!r}")
         sort = self.query.get("o", "")
@@ -130,24 +206,33 @@ class ChangelistScreen(Screen):
         table = self.query_one("#changelist-table", DataTable)
         table.clear(columns=True)
 
+        # Leading selection-indicator column.
+        table.add_column(" ", key=SELECTION_COLUMN_KEY, width=2)
+
         columns = list(self.overlay.get_list_columns(self.request))
         for col in columns:
             table.add_column(self._column_label(col), key=col)
 
         for obj in changelist.result_list:
-            row_values = []
+            pk = str(obj.pk)
+            marker = "✓" if pk in self.selected_pks else " "
+            row_values = [marker]
             for col in columns:
                 cell = self.overlay.render_cell(self.request, obj, col)
                 row_values.append(cell.display)
-            table.add_row(*row_values, key=str(obj.pk))
+            table.add_row(*row_values, key=pk)
 
     def _column_label(self, name: str) -> str:
-        # Mirror admin's label_for_field where possible; fall back to title-case.
         try:
             from django.contrib.admin.utils import label_for_field
 
-            return str(label_for_field(name, self.overlay.model_admin.model,
-                                       self.overlay.model_admin))
+            return str(
+                label_for_field(
+                    name,
+                    self.overlay.model_admin.model,
+                    self.overlay.model_admin,
+                )
+            )
         except Exception:
             return name.replace("_", " ").title()
 
@@ -172,14 +257,15 @@ class ChangelistScreen(Screen):
             self._reset_request_and_rebuild()
 
     def action_cycle_sort(self) -> None:
-        """Cycle through asc / desc / unset on the focused column."""
         table = self.query_one("#changelist-table", DataTable)
         if table.cursor_column is None:
             return
         col_index = table.cursor_column
-        # Django uses 1-based column index in the `o` param, with leading
-        # `-` for descending.
-        target = str(col_index + 1)
+        # Skip the selection-indicator column (index 0) — sorting it makes
+        # no sense. The actual sort column is offset by -1.
+        if col_index == 0:
+            return
+        target = str(col_index)  # Django's `o` is 1-based against list_display.
         current = self.query.get("o", "")
         if current == target:
             self.query["o"] = f"-{target}"
@@ -246,15 +332,121 @@ class ChangelistScreen(Screen):
             )
         )
 
+    # ---- multi-select + actions ---------------------------------------
+
+    def action_toggle_select(self) -> None:
+        table = self.query_one("#changelist-table", DataTable)
+        if table.cursor_row is None:
+            return
+        row_key, _col_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        pk = row_key.value if row_key is not None else None
+        if pk is None:
+            return
+        if pk in self.selected_pks:
+            self.selected_pks.discard(pk)
+        else:
+            self.selected_pks.add(pk)
+        # Just refresh the indicator column + header rather than the whole table.
+        self._refresh_selection_indicator(table, pk)
+        self._rebuild_header()
+
+    def _rebuild_header(self) -> None:
+        changelist = _build_changelist(
+            self.overlay.model_admin, self.request, query=self.query
+        )
+        self._refresh_header(changelist)
+
+    def _refresh_selection_indicator(
+        self,
+        table: DataTable,
+        pk: str,
+    ) -> None:
+        marker = "✓" if pk in self.selected_pks else " "
+        try:
+            table.update_cell(pk, SELECTION_COLUMN_KEY, marker)
+        except Exception:
+            # Cell may not exist if a rebuild happened between key press
+            # and this call; safe to swallow.
+            pass
+
+    def action_open_action_picker(self) -> None:
+        if not self.selected_pks:
+            self.app.notify(
+                "Select rows with Space first.",
+                severity="warning",
+            )
+            return
+
+        actions = self._available_actions()
+        if not actions:
+            self.app.notify(
+                "No actions available for the current user.",
+                severity="warning",
+            )
+            return
+
+        def _on_pick(result: tuple[str, str] | None) -> None:
+            if result is None:
+                return
+            action_name, action_label = result
+            self._open_confirm(action_name, action_label)
+
+        self.app.push_screen(_ActionPickerModal(actions), _on_pick)
+
+    def _available_actions(self) -> list[tuple[str, str]]:
+        """Build the (action_name, label) list shown in the picker.
+
+        Skip the web admin's `delete_selected` (it expects an HTTP
+        request/response cycle); offer our own TUI-managed delete instead
+        when the user has delete permission.
+        """
+        out: list[tuple[str, str]] = []
+        admin_actions = _get_actions(self.overlay, self.request)
+        for name, (_func, _action_name, description) in admin_actions.items():
+            if name == "delete_selected":
+                continue
+            out.append((name, str(description or name)))
+        if self.overlay.has_delete_permission(self.request):
+            out.append((DELETE_SENTINEL, "Delete selected"))
+        return out
+
+    def _open_confirm(self, action_name: str, action_label: str) -> None:
+        confirm_request = build_request(self.session.user)
+        confirm_request._tui_session = self.session
+        queryset = self.overlay.model_admin.get_queryset(confirm_request).filter(
+            pk__in=self.selected_pks
+        )
+        self.app.push_screen(
+            ActionConfirmScreen(
+                session=self.session,
+                overlay=self.overlay,
+                request=confirm_request,
+                action_name=action_name,
+                action_label=action_label,
+                queryset=queryset,
+            )
+        )
+
     # ---- helpers -------------------------------------------------------
 
     def _reset_request_and_rebuild(self) -> None:
-        """Rebuild the synthetic request so GET reflects the new query, then refresh.
-
-        Reusing the same HttpRequest works (we re-assign request.GET each
-        time) but a fresh one is safer if anything we don't control set
-        attributes on the previous one.
-        """
         self.request = build_request(self.session.user)
         self.request._tui_session = self.session
         self._rebuild()
+
+    def on_screen_resume(self) -> None:
+        """Refresh after returning from a detail / action / confirm screen.
+
+        Action runs or deletes may have changed the underlying data; rebuild
+        so the operator sees the current state. Clear selections of objects
+        that no longer exist."""
+        # Drop any selected pks that no longer exist (e.g. after delete).
+        if self.selected_pks:
+            qs = self.overlay.model_admin.get_queryset(self.request)
+            existing = set(
+                str(pk) for pk in qs.filter(pk__in=self.selected_pks).values_list(
+                    "pk", flat=True
+                )
+            )
+            self.selected_pks &= existing
+        self._reset_request_and_rebuild()

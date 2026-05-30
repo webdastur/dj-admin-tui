@@ -288,6 +288,77 @@ def test_before_save_and_after_save_fire_in_order(superuser, author):
     assert calls[1][2] == obj.pk
 
 
+# ---- delete (US3 / FR-016, SC-004) -----------------------------
+
+
+@pytest.mark.django_db
+def test_tui_delete_path_writes_log_deletion_per_object(superuser, author):
+    """FR-016: deleting through the TUI's delete sequence writes a
+    LogEntry of type DELETION per deleted object, with correct
+    user / content_type / object_repr — matching the web admin's
+    delete_selected behavior."""
+    from django.contrib.admin.models import DELETION
+
+    from admin_tui.core.audit import _log_deletion
+
+    request = build_request(superuser)
+    overlay = tui_site.get_or_synthesize(Book)
+    b1 = Book.objects.create(title="Delete Me 1", author=author,
+                             published=dt.date(2020, 1, 1))
+    b2 = Book.objects.create(title="Delete Me 2", author=author,
+                             published=dt.date(2021, 1, 1))
+    targets = list(Book.objects.filter(pk__in=[b1.pk, b2.pk]))
+
+    # ActionConfirmScreen._do_delete sequence: log first, then delete.
+    for obj in targets:
+        _log_deletion(overlay.model_admin, request, obj)
+    qs = Book.objects.filter(pk__in=[b1.pk, b2.pk])
+    overlay.model_admin.delete_queryset(request, qs)
+
+    assert not Book.objects.filter(pk__in=[b1.pk, b2.pk]).exists()
+    ct = ContentType.objects.get_for_model(Book)
+    deletions = LogEntry.objects.filter(
+        action_flag=DELETION,
+        content_type=ct,
+    ).order_by("-action_time")[:2]
+    assert deletions.count() == 2
+    object_reprs = {log.object_repr for log in deletions}
+    assert object_reprs == {"Delete Me 1", "Delete Me 2"}
+    for log in deletions:
+        assert log.user_id == superuser.id
+
+
+@pytest.mark.django_db
+def test_view_only_user_lacks_delete_permission(staff_only_user, author):
+    """FR-016 + Constitution II: a view-only user gets has_delete_permission
+    = False. The screen hides the delete affordance based on this gate."""
+    from django.contrib.auth.models import Permission
+    from django.contrib.contenttypes.models import ContentType as CT
+
+    ct = CT.objects.get_for_model(Book)
+    staff_only_user.user_permissions.add(
+        Permission.objects.get(codename="view_book", content_type=ct)
+    )
+    overlay = tui_site.get_or_synthesize(Book)
+    request = build_request(staff_only_user)
+    assert overlay.has_delete_permission(request) is False
+
+
+@pytest.mark.django_db
+def test_delete_permission_user_can_delete(staff_only_user, author):
+    from django.contrib.auth.models import Permission
+    from django.contrib.contenttypes.models import ContentType as CT
+
+    ct = CT.objects.get_for_model(Book)
+    staff_only_user.user_permissions.add(
+        Permission.objects.get(codename="view_book", content_type=ct),
+        Permission.objects.get(codename="delete_book", content_type=ct),
+    )
+    overlay = tui_site.get_or_synthesize(Book)
+    request = build_request(staff_only_user)
+    assert overlay.has_delete_permission(request) is True
+
+
 # ---- audit parity (the SC-004 anchor) ---------------------------
 
 

@@ -41,8 +41,36 @@ def _log_deletion(
     request: "HttpRequest",
     obj: Any,
 ) -> Any:
-    """Log a delete. Call BEFORE actually deleting so `str(obj)` resolves."""
+    """Log a single-object delete. Call BEFORE actual deletion.
+
+    Django 6.0 renamed `log_deletion(obj, object_repr)` to
+    `log_deletions(queryset)`. We dispatch to whichever the installed
+    version exposes — the per-object signature stays the same to callers.
+    """
+    if hasattr(model_admin, "log_deletions"):
+        # Django 6.0+
+        qs = model_admin.model._default_manager.filter(pk=obj.pk)
+        return model_admin.log_deletions(request, qs)
+    # Django 4.2 / 5.2 — older per-object API.
     return model_admin.log_deletion(request, obj, str(obj))
+
+
+def _log_deletions(
+    model_admin: "ModelAdmin",
+    request: "HttpRequest",
+    queryset: Any,
+) -> Any:
+    """Batch deletion log — one call per queryset.
+
+    On Django 6.0+ uses `log_deletions(queryset)` directly; on older
+    Django falls back to per-object `log_deletion(...)`.
+    """
+    if hasattr(model_admin, "log_deletions"):
+        return model_admin.log_deletions(request, queryset)
+    # Django 4.2 / 5.2 — loop per object.
+    for obj in queryset:
+        model_admin.log_deletion(request, obj, str(obj))
+    return None
 
 
 def _change_message(
