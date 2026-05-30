@@ -1,126 +1,86 @@
 # Architecture
 
-> **For the spec, the principles, and the contracts** see
-> `specs/001-admin-tui-mvp/` and `.specify/memory/constitution.md`. This
-> document is a single-page mental model for new contributors.
+A one-page tour of how the TUI is put together. The guiding rule: **reuse
+Django's admin; never reimplement it.** All domain behaviour — querysets,
+search, filtering, ordering, pagination, form construction, validation,
+permissions, actions, and audit — is produced by the registered `ModelAdmin`
+and Django's own internals. The TUI renders that output in the terminal.
 
-## The one-screen object graph
+## The synthetic request
 
-```text
-                       AdminTuiApp (Textual App)
-                              │
-                              ├─ session : TuiSession
-                              ▼
-                    IndexScreen (apps → models)
-                              │
-                  ┌───────────┴───────────┐
-                  ▼                       ▼
-       ChangelistScreen           [tool screens registered
-       (DataTable + actions)       via tui_site.register_screen]
-                  │
-                  ├─ Space toggles select
-                  ├─ x  → _ActionPickerModal → ActionConfirmScreen
-                  ├─ /  → _SearchModal
-                  ├─ a  → ChangeScreen(mode="add")
-                  └─ Enter → ChangeScreen(mode="view")
-                                     │
-                                     └─ e → ChangeScreen(mode="edit")
+The TUI runs in-process with no HTTP layer, but the admin API expects a
+`request`. Each session builds one synthetic `HttpRequest` scoped to the chosen
+user (a single choke point), carrying a message store that captures
+`message_user(...)` output. Every admin call — `get_changelist_instance`,
+`get_form`, `has_*_permission`, the action callables — receives this request, so
+permissions and audit behave exactly as the web admin would for that user.
+
+## Object graph
+
+```
+AdminTuiApp (Textual App)
+  └── pushes Screens:
+        IndexScreen       apps → models (permission-scoped)
+        ChangelistScreen  DataTable + search + sort + filter sidebar + pagination
+        ChangeScreen      detail / create / edit (admin fieldsets + widgets)
+        ActionConfirmScreen  confirm + run admin actions / delete
+
+TuiSite (registry)        model → TuiAdmin overlay
+  └── synthesizes a default TuiAdmin from the ModelAdmin when none is registered
+
+TuiAdmin (overlay)        per-model TUI behaviour; delegates to self.model_admin
+
+FieldWidgetRegistry       form-field class → Textual widget factory (MRO walk)
 ```
 
-Every box on the right reads from **one TuiAdmin overlay**, which the
-`TuiSite` (`admin_tui.tui_site`) maps to from the model. If no overlay
-is registered, `TuiSite.get_or_synthesize(model)` returns a default
-`TuiAdmin(model_admin)` — the same class user-written overlays subclass
-(Constitution IV).
+Defaults travel the **same** path third-party extensions use: the default
+overlay is a synthesized `TuiAdmin`, and screens are always chosen via
+`overlay.get_*_screen(...)` — there is no privileged internal render path. (See
+[extending.md](./extending.md).)
 
-Permissions, form construction, validation, audit, search, filter, sort,
-paginate — none of it lives in this package. Every one of those calls
-through to a `ModelAdmin` method enumerated in
-`specs/001-admin-tui-mvp/contracts/internal-django-surface.md`
-(Constitution I).
+## Changelist layout & truncation
 
-## The synthetic request — the only tricky part
+Textual's `DataTable` auto-sizes columns to content and auto-scrolls to the
+cursor cell. To keep the list stable, the TUI computes **fixed,
+selection-independent** column widths once per rebuild (sampling only the
+current page, never the whole queryset) and **pre-truncates** each cell with an
+ellipsis (display-width aware, so CJK/emoji don't break alignment). Overflow is
+handled by intentional horizontal scrolling; the focused row's full values show
+in a fixed footer bar. Widths recompute on search / filter / sort / page — never
+on cursor movement.
 
-Even in-process, `ModelAdmin.get_changelist_instance(...)`, every
-`has_*_permission(...)` call, and every action need a real `HttpRequest`
-carrying the chosen user **and** a `_messages` backend (because
-`message_user` defers to Django's messages framework).
+Sorting and filtering defer to Django: the filter sidebar is built from
+`ChangeList.get_filters(request)` and applies the admin's own query strings; the
+sort arrows and which columns are sortable come from
+`ChangeList.get_ordering_field_columns()` / `get_ordering_field(...)`, so
+`ModelAdmin.ordering`, `sortable_by`, and `admin_order_field` all apply.
 
-`admin_tui/core/request.py::build_request(user, query=None)` synthesises
-one:
+## Forms, save & audit
 
-- `django.test.RequestFactory().get(path, data=query)` — a real
-  `HttpRequest`.
-- `request.user = user`.
-- `request._messages = _CapturingMessageStorage(request)` — a
-  `BaseStorage` subclass that records every `(level, message, tags)`
-  tuple to `request._messages.captured` and never touches cookies or
-  sessions.
-- `request._tui_session` — set to the live `TuiSession` by the CLI.
+Create/edit forms come from `ModelAdmin.get_form(request, obj)`, so every
+`clean_*` / `clean` validator runs unchanged. On save the TUI mirrors the
+admin's change-form sequence — `save_model` → `save_related` →
+`construct_change_message` → `log_addition` / `log_change` — and deletions emit
+`log_deletion`. Widget values (including many-to-many and split widgets) are
+gathered into a form-data dict and re-validated through the same form.
 
-The capturing storage is what lets the `ActionConfirmScreen` surface
-each `message_user(...)` call as a Textual `notify(...)`.
+## Theming
 
-## Public surface freeze
+Two Textual-native layers compose: a named `Theme` (palette) selected by
+`ADMIN_TUI["THEME_NAME"]`, and an optional `.tcss` (`ADMIN_TUI["THEME"]`) layered
+on top. No parallel theming abstraction is introduced. See
+[theming.md](./theming.md).
 
-Only these five names are public (`FR-030`, Constitution V):
+## Resilience
 
-```python
-from admin_tui import register, TuiAdmin, tui_site, field_widgets, AdminTuiApp
-```
-
-The freeze is enforced by `tests/unit/test_public_api.py`, which asserts
-`set(admin_tui.__all__) == set(_PUBLIC_NAMES)`. Adding a name requires
-the FR-031 paperwork (justification, test, docs).
-
-## Audit fidelity
-
-Every create, edit, delete, and action MUST produce a `LogEntry` whose
-content matches what the web admin would write for the same inputs
-(SC-004). We route through the admin's own helpers:
-
-- `ModelAdmin.log_addition(...)` (or `log_change`, `log_deletions`).
-- `ModelAdmin.construct_change_message(request, form, formsets, add)` —
-  the same change-message payload the web admin stores.
-
-`core/audit.py` is a thin pass-through with one compat shim: Django 6.0
-renamed `log_deletion(obj, repr)` to `log_deletions(queryset)`; the
-shim dispatches on `hasattr(model_admin, "log_deletions")`.
-
-## v2 — presentation, interaction & theming
-
-The v2 redesign (`specs/002-ui-redesign-django-parity/`) is presentation +
-interaction over the same data paths — it changes no admin behavior.
-
-- **Stable changelist layout** (`widgets/layout.py`): `compute_column_widths`
-  computes fixed, selection-independent column widths from the current page's
-  rows (never the full queryset), and `truncate_cell` pre-truncates each cell
-  (display-width aware). This replaces v1's content-auto-sizing + cursor
-  auto-scroll — the cause of the "cropped columns / full text on select" glitch.
-  Overflow is handled by intentional horizontal scrolling. The focused row's
-  full values are shown in a fixed footer bar (no reflow).
-- **Filter sidebar** (`widgets/filters.py`): renders Django's own
-  `ChangeList.get_filters(request)` choices and applies their `query_string`
-  verbatim — no filter logic is re-derived (Constitution I).
-- **Mouse**: single click focuses, clicking the focused row / Enter opens, a
-  checkbox-column click multi-selects, a header click sorts. All additive to the
-  keyboard bindings; distinguished from Enter via the mouse-down column.
-- **Theming** (`themes/`): a bundled `django` `textual.theme.Theme` (the admin
-  palette) is the default; `ADMIN_TUI["THEME_NAME"]` selects a registered theme
-  and the existing `ADMIN_TUI["THEME"]` `.tcss` is layered on top. No new public
-  Python name — custom themes are registered by overriding `AdminTuiApp`.
-- **Edit fix**: many-to-many fields now use a `SelectionList` (`widgets/
-  defaults/many_to_many.py`) and the save path gathers list values; nullable
-  FK/choice fields no longer crash the form. See `screens/change.py`.
+DB/query failures (missing table, permission error, broken `ModelAdmin` method)
+are caught and surfaced as notifications; the app stays on a usable screen
+instead of crashing.
 
 ## Where to look next
 
-- `specs/001-admin-tui-mvp/contracts/public-api.md` — the documented
-  hook signatures on `TuiAdmin`.
-- `specs/001-admin-tui-mvp/contracts/cli.md` — `manage.py admin_tui`
-  flags + exit codes.
-- `specs/001-admin-tui-mvp/contracts/settings.md` — the `ADMIN_TUI`
-  dict schema.
-- `specs/001-admin-tui-mvp/contracts/internal-django-surface.md` — every
-  Django admin call we depend on (Constitution I in code).
-- `sample_project/library/tui.py` — the canonical overlay example.
+- [api.md](./api.md) — the public Python surface and stability policy.
+- [extending.md](./extending.md) — overlays, hooks, custom widgets and screens.
+- [configuration.md](./configuration.md) — the `ADMIN_TUI` settings dict.
+- [cli.md](./cli.md) — the management command, flags, and exit codes.
+- `sample_project/library/tui.py` — a worked overlay example.

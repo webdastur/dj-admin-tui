@@ -1,28 +1,35 @@
-<!-- SPECKIT START -->
-The active feature is the **v2 UI redesign**. Read its plan at
-[specs/002-ui-redesign-django-parity/plan.md](specs/002-ui-redesign-django-parity/plan.md).
-It is a presentation/interaction/bug-fix pass over the completed v1 core
-([specs/001-admin-tui-mvp/plan.md](specs/001-admin-tui-mvp/plan.md)) and MUST NOT change
-any v1 data behavior (result sets, permissions, validation, saves, audit).
+# Django Admin TUI — project notes
 
-v2 companion artifacts (same folder):
-- `spec.md` — feature spec + `## Clarifications` (full look-alike; named themes + override;
-  footer cell-preview; single-click focus / double-click open; horizontal-scroll layout).
-- `research.md` — locked decisions D1–D10 (layout/truncation, footer preview, mouse model,
-  filter sidebar, theming, edit-save bug triage, deferred toggles).
-- `data-model.md` — in-memory view-state (ColumnSpec, CellPreview, FilterPanelState,
-  AppearanceConfig, SaveData); no persistent storage.
-- `contracts/` — `settings.md` (new `THEME_NAME` key), `interaction.md` (keymap + mouse map
-  + layout), `theming.md` (bundled themes + `.tcss` precedence).
-- `quickstart.md` — theming-via-settings + mouse walkthrough (delta over v1).
+A Textual terminal UI that drives the Django admin. **Core rule: reuse Django's
+admin; never reimplement it.** Querysets, search, filtering, ordering,
+pagination, form construction, validation, permissions, actions, and audit all
+come from the registered `ModelAdmin` and Django's own internals. The TUI only
+renders that output in the terminal and adds presentation/interaction.
 
-Key v2 facts: the changelist glitch is Textual `DataTable` content-auto-sizing +
-cursor auto-scroll — fix with selection-independent fixed-width columns + pre-truncation
-(`admin_tui/widgets/layout.py`). The edit bug is multi-value/MultiWidget data being dropped
-in `screens/change.py` `_gather_data`/`_read_widget_value`. Theming uses Textual `Theme`
-objects (`admin_tui/themes/`) + the existing `.tcss` override, layered.
+## Layout
 
-Project principles live in `.specify/memory/constitution.md` (v1.0.0); the plan's
-Constitution Check maps each principle to the design choice that satisfies it. Reuse
-Django's admin internals; never reimplement them.
-<!-- SPECKIT END -->
+- `admin_tui/` — the package.
+  - `app.py` — `AdminTuiApp` (Textual App); registers themes, applies `THEME_NAME`.
+  - `conf.py` — the `ADMIN_TUI` settings loader/validation.
+  - `sites.py` / `options.py` — `TuiSite` registry + `TuiAdmin` overlay (+ `@register`).
+  - `screens/` — `index`, `changelist`, `change`, `action_confirm`.
+  - `widgets/` — `layout.py` (fixed-width columns + truncation), `filters.py`
+    (filter sidebar from Django's `get_filters`), `registry.py` + `defaults/`
+    (field → Textual widget).
+  - `themes/` — bundled `django` / `django-dark` Textual `Theme`s.
+  - `core/` — synthetic request, changelist/form/action bridges, audit, permissions.
+- `sample_project/` — in-repo Django project used by the tests.
+- `tests/` — `unit/` + `integration/sample_project/` (pytest + Textual `Pilot`).
+- `docs/` — user/developer docs (start at `docs/README.md`).
+
+## Conventions
+
+- Public API is five names only: `register`, `TuiAdmin`, `tui_site`,
+  `field_widgets`, `AdminTuiApp`. Everything else under `admin_tui.*` is
+  internal. A test freezes this surface (`tests/unit/test_public_api.py`).
+- Changelist columns are fixed-width and selection-independent; cells are
+  pre-truncated (`widgets/layout.py`). Never let `DataTable` auto-size.
+- Sorting/filtering defer to Django (`get_ordering_field_columns`,
+  `get_ordering_field`, `get_filters`).
+- DB/query errors surface as notifications — never crash the app.
+- Run tests with `python -m pytest -q`; lint with `ruff`.
