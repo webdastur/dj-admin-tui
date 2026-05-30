@@ -1,50 +1,164 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+SYNC IMPACT REPORT
+==================
+Version change: (template, unratified) → 1.0.0
+Bump rationale: Initial ratification. The prior file was the unfilled
+constitution template; this commit establishes binding governance for the
+project, so MAJOR is appropriate even though no prior obligations existed.
+
+Modified principles: n/a (initial ratification)
+
+Added sections:
+- Core Principles (I–VIII)
+- Technical Standards & Constraints
+- Governance
+
+Removed sections: n/a
+
+Templates requiring updates:
+- .specify/templates/plan-template.md            ✅ compatible — "Constitution
+  Check" gate is a generic placeholder filled per-feature; principles I–VIII
+  supply the gate content at /speckit-plan time.
+- .specify/templates/spec-template.md            ✅ compatible — no
+  constitution-specific sections need adjustment.
+- .specify/templates/tasks-template.md           ✅ compatible — task
+  categories (Setup, Foundational, User Stories, Polish) accommodate the
+  principles; Principle VIII (sample-app coverage) and Principle II (audit)
+  will be expressed as concrete tasks during /speckit-tasks.
+- .specify/templates/checklist-template.md       ✅ compatible.
+- .claude/skills/speckit-*/                      ✅ no references to prior
+  constitution content; nothing to update.
+- README.md / docs/quickstart.md                  ⚠ not present yet — create
+  with /speckit-specify and downstream commands; ensure they state the
+  Principle VII trust model and the Principle V public API surface.
+
+Follow-up TODOs:
+- TODO(PACKAGE_NAME): working title is "Django Admin TUI"; choose the
+  PyPI distribution name before 1.0 ratification of the package itself
+  (`django-admin-tui` is taken). This is independent of constitution
+  version 1.0.0.
+-->
+
+# Django Admin TUI — Constitution
+
+> Working title; package name TBD (`django-admin-tui` is taken on PyPI). Rename on ratification.
+> This document holds the project's **enduring principles and governance**. The *what/why* lives in `spec.md`; the *how* lives in `plan.md`. Where any of those conflict with this constitution, **this document wins.**
+
+---
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Reuse Django's admin; never reimplement it
+All domain behavior — querysets, search, filtering, ordering, pagination, form
+construction, validation, permissions, actions, and audit — MUST be produced by the
+registered `ModelAdmin` and Django's own internals (e.g. `get_changelist_instance`,
+`get_form`, `get_actions`). The TUI renders admin output in the terminal; it MUST NOT
+re-derive admin logic.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+*Gate:* no code path computes filtering, validation, or permission logic that Django
+already provides.
+*Rationale:* correctness for free, automatic compatibility across Django versions and
+third-party `ModelAdmin`s, and the smallest possible surface to maintain.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Permission and audit fidelity is non-negotiable
+Every read and every mutation MUST pass the same `has_view/add/change/delete_permission`
+checks as the web admin, scoped to the session user. Every create, edit, delete, and
+action MUST write a Django `LogEntry`. The TUI MUST NEVER surface data or perform a
+mutation the web admin would deny to that user.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+*Gate:* no operation bypasses an admin permission check; every mutation produces a
+`LogEntry`.
+*Rationale:* a terminal admin must not become a privilege-escalation or audit-evasion
+backdoor.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Zero-config by default; extension is opt-in
+A project with existing `ModelAdmin`s MUST work fully with no `tui.py` present.
+`TuiAdmin` exists solely to add TUI-specific behavior and MUST NEVER require
+re-declaring admin configuration (`list_display`, `search_fields`, etc.).
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+*Gate:* in the sample project, models with no registered `TuiAdmin` render and operate
+completely.
+*Rationale:* a second configuration that can drift from the admin is a defect, not a
+feature.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Defaults travel the extension path (dogfooding)
+Built-in behavior MUST be produced by the same `TuiSite` registry and auto-synthesized
+`TuiAdmin` that third-party extensions use. There MUST NOT be a privileged internal
+code path that bypasses the public extension surface.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+*Gate:* default rendering is generated by a synthesized `TuiAdmin`, not a parallel branch.
+*Rationale:* extension points exercised by our own core cannot silently rot.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. A small, intentional, stable public API
+Only documented names — `register`, `TuiAdmin`, `tui_site`, `field_widgets`,
+`AdminTuiApp`, and the documented hook methods — are public. Everything else is
+underscore-internal and MAY change without notice. The public surface grows ONLY in
+response to a demonstrated, real-world need, never speculatively. Public API changes
+follow SemVer with a deprecation path.
+
+*Gate:* any newly public name requires a written justification, a test, and a docs entry.
+*Rationale:* a pre-1.0 project that over-promises extensibility forfeits its ability to
+refactor.
+
+### VI. Build on Textual; do not wrap it
+Where customization touches the UI, developers are handed Textual primitives directly —
+return a `Screen` or `Widget` subclass, use Textual CSS for theming. The project MUST NOT
+introduce an abstraction layer that hides or re-implements Textual's own extensibility.
+
+*Rationale:* a thin abstraction over a capable framework is liability, not value, and it
+ages worse than the framework it hides.
+
+### VII. Local-first security posture, stated plainly
+v1 MUST NOT open a network port, accept tokens, or expose a remote API. It runs
+in-process and is reached over the operator's existing shell/SSH access. The `--user`
+flag scopes permissions and audit attribution; it is NOT an access-control boundary, and
+the documentation MUST state this trust model explicitly. Any future remote mode MUST be
+opt-in and authenticated.
+
+*Rationale:* be honest about the trust boundary; never ship an accidental
+admin-over-the-network.
+
+### VIII. Every extension point is covered by the sample app
+The in-repo sample Django project MUST register a `TuiAdmin`, a custom field widget, and
+a TUI-native action. These exercise the full public API as both regression tests and
+living documentation.
+
+*Gate:* CI fails if any sample-project extension path breaks.
+*Rationale:* an untested extension point is an undocumented, unkept promise.
+
+---
+
+## Technical Standards & Constraints
+
+- **Compatibility:** supports the current Django LTS (4.2) and the latest stable Django
+  (5.x); Python floor tracks Django's minimum. Fast-moving dependencies (Textual,
+  Spec Kit's `specify`) are version-pinned, not floated.
+- **License:** MIT. All bundled scaffolding and generated artifacts MUST be MIT-compatible.
+- **Distribution:** a single pip-installable package; no build step that requires
+  non-Python toolchains for end users.
+- **Process:** development is spec-driven. Code changes begin from `spec.md`/`plan.md`,
+  not the other way around; if reality diverges, update the spec first.
+
+---
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes other project documents. Specs, plans, task lists, and pull
+requests are reviewed against these principles; a violation MUST be either corrected or
+recorded with an explicit, justified deviation note before merge.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Amendments** require a pull request that states the rationale, bumps the constitution
+version, and includes migration notes for any affected public API.
+
+**Constitution versioning** (independent of the package version) uses SemVer:
+- **MAJOR** — a principle is removed or redefined in a backward-incompatible way.
+- **MINOR** — a new principle or binding section is added.
+- **PATCH** — clarification or wording that does not change obligations.
+
+**Compliance review** happens at each Spec Kit phase boundary (spec → plan → tasks →
+implement) and at every PR. The default answer to "should this be public/configurable?"
+is **no** until a concrete need is demonstrated (Principle V).
+
+---
+
+**Version:** 1.0.0 | **Ratified:** 2026-05-30 | **Last Amended:** 2026-05-30
