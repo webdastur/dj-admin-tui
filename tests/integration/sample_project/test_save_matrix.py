@@ -45,7 +45,8 @@ async def test_create_saves_all_field_types_including_m2m(superuser, showcase_ta
 
         w = screen._widgets
         w["title"].value = "Created Widget"
-        w["description"].value = "A created description"
+        # description is a TextField → multi-line TextArea (uses .text, not .value).
+        w["description"].text = "A created description"
         w["status"].value = "published"
         w["is_active"].value = True
         w["author"].value = author.pk
@@ -106,6 +107,40 @@ async def test_edit_updates_value_and_m2m(superuser, showcase_targets):
         entry = LogEntry.objects.filter(object_id=str(obj.pk)).latest("id")
         assert entry.action_flag == CHANGE
         assert entry.user_id == superuser.pk
+
+
+@pytest.mark.django_db
+async def test_text_field_renders_multiline_textarea(superuser, showcase_targets):
+    """A model TextField (form CharField + Textarea widget) renders as a
+    multi-line TextArea; a CharField stays a single-line Input. Multi-line
+    content round-trips on save."""
+    from textual.widgets import Input, TextArea
+
+    session = TuiSession(user=superuser, app_class=AdminTuiApp)
+    async with AdminTuiApp(session=session).run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        overlay, request = _overlay_and_request(session, superuser)
+        screen = ChangeScreen(
+            session=session, overlay=overlay, request=request, obj=None, mode="add"
+        )
+        await pilot.app.push_screen(screen)
+        await pilot.pause()
+
+        w = screen._widgets
+        assert isinstance(w["description"], TextArea), type(w["description"])
+        assert isinstance(w["title"], Input), type(w["title"])
+
+        w["title"].value = "Multiline Widget"
+        w["description"].text = "line one\nline two\nline three"
+        w["status"].value = "draft"
+        w["quantity"].value = "1"
+        w["price"].value = "0.00"
+
+        screen.action_save()
+        await pilot.pause()
+
+        obj = Showcase.objects.get(title="Multiline Widget")
+        assert obj.description == "line one\nline two\nline three"
 
 
 @pytest.mark.django_db

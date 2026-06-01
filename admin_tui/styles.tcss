@@ -26,7 +26,11 @@
  * .atui-btn-link    text-style link (pagination)
  */
 .atui-btn {
-    height: 3;
+    /* Flat, single-row buttons. A taller (height 3) button gets clipped to its
+     * middle row inside the height-1 changelist toolbar — the label vanishes —
+     * and reads as oversized on the change form. One row keeps the label
+     * visible everywhere and matches the compact terminal aesthetic. */
+    height: 1;
     min-width: 0;
     padding: 0 2;
     margin: 0 2 0 0;
@@ -157,6 +161,22 @@ ChangeScreen .field-label {
 ChangeScreen .field-widget {
     width: 1fr;
     height: auto;
+}
+/* Read-only value column (view mode + read-only fields). `height: auto` + the
+ * 1fr width lets long values (M2M lists, text) wrap to as many rows as needed
+ * so the full value is shown rather than clipped. */
+ChangeScreen .field-value {
+    width: 1fr;
+    height: auto;
+    color: $text;
+}
+/* Free-text lines (inline rows, "(none)", non-form values). These are bare
+ * Statics, NOT label/widget rows — they must NOT carry `layout: horizontal`
+ * (a horizontal box with no child widgets collapses to height 0 and the text
+ * disappears, leaving a blank gap). Plain auto-height block instead. */
+ChangeScreen .field-line {
+    height: auto;
+    color: $text-muted;
 }
 /* Kill the default vertical margins Textual inputs carry, so form rows sit
  * close together like the Django change form (one blank line per row). */

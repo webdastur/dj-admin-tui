@@ -11,11 +11,70 @@ App's connection must see committed rows (same rationale as test_navigation).
 from __future__ import annotations
 
 import datetime as dt
+import importlib
 
 import pytest
 from django.utils import timezone
 
-from sample_project.library.models import Author, Showcase, Tag
+from admin_tui.sites import tui_site
+from sample_project.library.models import Author, Book, Showcase, Tag
+
+
+@pytest.fixture
+def with_overlays():
+    """Reload library.tui so BookTui + AuthorTui + LogEntryScreen register."""
+    tui_site._registry.clear()
+    tui_site._synth_cache.clear()
+    tui_site._screens.clear()
+    import sample_project.library.tui as tui_module
+
+    importlib.reload(tui_module)
+    yield
+    tui_site._registry.clear()
+    tui_site._synth_cache.clear()
+    tui_site._screens.clear()
+
+
+@pytest.fixture
+def seeded_books(transactional_db):
+    """A handful of books spanning 'Tolkien' (2) and 'Lewis' (1).
+
+    Uses ``transactional_db`` (not ``db``) because Pilot runs the App in a
+    worker thread, and the App's connection only sees committed rows.
+    """
+    tolkien = Author.objects.create(name="J.R.R. Tolkien")
+    lewis = Author.objects.create(name="C.S. Lewis")
+    pratchett = Author.objects.create(name="Terry Pratchett")
+    Book.objects.create(
+        title="The Hobbit",
+        author=tolkien,
+        published=dt.date(1937, 9, 21),
+        featured=False,
+        color="#000000",
+    )
+    Book.objects.create(
+        title="The Lord of the Rings",
+        author=tolkien,
+        published=dt.date(1954, 7, 29),
+        featured=False,
+        color="#000000",
+    )
+    Book.objects.create(
+        title="The Lion, the Witch and the Wardrobe",
+        author=lewis,
+        published=dt.date(1950, 10, 16),
+        featured=False,
+        color="#000000",
+    )
+    Book.objects.create(
+        title="Mort",
+        author=pratchett,
+        published=dt.date(1987, 11, 1),
+        featured=False,
+        color="#000000",
+    )
+    # Materialise so Pilot's async-context queries don't share a lazy cursor.
+    return list(Book.objects.all())
 
 
 @pytest.fixture

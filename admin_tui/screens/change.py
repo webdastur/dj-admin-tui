@@ -19,6 +19,15 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal
 
+from django.contrib.admin.utils import (
+    display_for_field,
+    label_for_field,
+    lookup_field,
+)
+from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import BooleanField, OneToOneField
+from django.db.models.fields.reverse_related import ForeignObjectRel, ManyToManyRel
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -45,10 +54,11 @@ from admin_tui.core.forms import (
 )
 from admin_tui.core.request import build_request
 from admin_tui.screens.action_confirm import DELETE_SENTINEL, ActionConfirmScreen
+from admin_tui.widgets.layout import sanitize_cell
 from admin_tui.widgets.registry import field_widgets
 
 if TYPE_CHECKING:
-    from django.forms import BoundField, ModelForm
+    from django.forms import ModelForm
     from django.http import HttpRequest
 
     from admin_tui._internal.session import TuiSession
@@ -129,6 +139,17 @@ class ChangeScreen(Screen):
 
     def on_mount(self) -> None:
         self._refresh_non_field_errors()
+        if self.mode == "view":
+            # View mode has no focusable widgets, so the scroll container never
+            # receives focus and arrow/PageDown can't scroll a long detail.
+            # Focus #detail-body (a focusable VerticalScroll) so it does.
+            self.call_after_refresh(self._focus_detail_body)
+
+    def _focus_detail_body(self) -> None:
+        try:
+            self.query_one("#detail-body").focus()
+        except Exception:  # noqa: BLE001 — best-effort; never crash on focus.
+            pass
 
     def _breadcrumb(self) -> str:
         meta = self.overlay.model_admin.model._meta
@@ -158,12 +179,31 @@ class ChangeScreen(Screen):
                 if set_name:
                     yield Static(f"[b]{set_name}[/]", classes="fieldset-name")
                 for field_name in set_body.get("fields", []):
-                    yield Static(self._format_field_value(field_name),
-                                 classes="field-row")
+                    # Grouped fields (tuples) render one row each, like the form.
+                    names = (
+                        field_name
+                        if isinstance(field_name, (list, tuple))
+                        else (field_name,)
+                    )
+                    for sub in names:
+                        yield from self._compose_view_field(sub)
         # R15: inline relations rendered as read-only sections below the
         # main fieldsets. Editable inline rows are deferred to a follow-up.
         if self.obj is not None:
             yield from self._compose_inlines()
+
+    def _compose_view_field(self, field_name: str) -> Iterable[Widget]:
+        """A read-only `label: value` row (Django-style label-left / value-right).
+
+        Must be a real `Horizontal` with child Statics — a bare Static carrying
+        `.field-row` (layout: horizontal) collapses to height 0 and the text
+        vanishes.
+        """
+        with Horizontal(classes="field-row"):
+            yield Static(f"{escape(self._readonly_label(field_name))}:",
+                         classes="field-label")
+            yield Static(escape(self._readonly_value(field_name)),
+                         classes="field-value")
 
     def _compose_inlines(self) -> Iterable[Widget]:
         inlines = _inline_instances(
@@ -179,7 +219,7 @@ class ChangeScreen(Screen):
                 related = self._related_queryset(inline)
                 count = related.count()
                 if count == 0:
-                    yield Static("[dim](none)[/]", classes="field-row")
+                    yield Static("[dim](none)[/]", classes="field-line")
                 else:
                     fields = list(getattr(inline, "fields", None) or [])
                     if not fields:
@@ -195,7 +235,7 @@ class ChangeScreen(Screen):
                             bits.append(f"{f}={value!s}")
                         yield Static(
                             "• " + ", ".join(bits),
-                            classes="field-row",
+                            classes="field-line",
                         )
 
     def _related_queryset(self, inline) -> Any:  # type: ignore[no-untyped-def]
@@ -236,7 +276,7 @@ class ChangeScreen(Screen):
         if name not in self.form.fields:
             # Fieldsets can name properties or methods that aren't form
             # fields — render them read-only as in view mode.
-            yield Static(self._format_field_value(name), classes="field-row")
+            yield from self._compose_view_field(name)
             return
         bound = self.form[name]
         # Django layout: label on the left, the widget (+ inline error) on the
@@ -246,7 +286,8 @@ class ChangeScreen(Screen):
             with Vertical(classes="field-widget"):
                 if name in self._readonly:
                     # Render the current value as plain text — no widget.
-                    yield Static(self._readonly_display(bound), classes="readonly")
+                    yield Static(escape(self._readonly_value(name)),
+                                 classes="readonly")
                 else:
                     # Building a widget can hit the DB (FK/M2M option queries).
                     # On failure, render read-only rather than crash the form.
@@ -268,10 +309,6 @@ class ChangeScreen(Screen):
                 err.display = False
                 yield err
 
-    def _readonly_display(self, bound: "BoundField") -> str:
-        v = bound.value()
-        return "—" if v is None else str(v)
-
     # ---- view-mode helpers --------------------------------------------
 
     def _fieldsets(self) -> list[tuple[str | None, dict[str, Any]]]:
@@ -292,14 +329,59 @@ class ChangeScreen(Screen):
             return f"Change {verbose}: {self.obj}"
         return f"{verbose}: {self.obj}"
 
-    def _format_field_value(self, field_name: Any) -> str:
-        if isinstance(field_name, (list, tuple)):
-            return " · ".join(self._format_field_value(f) for f in field_name)
+    def _readonly_label(self, field_name: str) -> str:
+        """Human label for a read-only field — Django's own `label_for_field`
+        (verbose_name, admin method `short_description`, …), capitalized like
+        the web admin."""
+        try:
+            label = label_for_field(
+                field_name, self.overlay.model_admin.model, self.overlay.model_admin
+            )
+        except Exception:  # noqa: BLE001 — unknown attr; fall back to the name.
+            label = str(field_name).replace("_", " ")
+        return label[:1].upper() + label[1:] if label else label
+
+    def _readonly_value(self, field_name: str) -> str:
+        """Display string for a read-only field, mirroring the web admin's
+        `AdminReadonlyField.contents()`: Django resolves the value via
+        `lookup_field`, M2M join their members, relations show `str(obj)`, and
+        everything else goes through `display_for_field`. We only diverge where
+        the web output is HTML — booleans render as plain text (the admin emits
+        an `<img>`), and the result is flattened/sanitized for a TUI cell."""
+        model_admin = self.overlay.model_admin
+        empty = model_admin.get_empty_value_display()
         if self.obj is None:
-            return f"[dim]{field_name}:[/] —"
-        value = getattr(self.obj, field_name, None)
-        display = "—" if value is None else str(value)
-        return f"[dim]{field_name}:[/] {display}"
+            return empty
+        try:
+            f, attr, value = lookup_field(field_name, self.obj, model_admin)
+        except (AttributeError, ValueError, ObjectDoesNotExist):
+            return empty
+
+        if f is None:
+            # An admin/model method or property (not a model field).
+            if getattr(attr, "boolean", False):
+                return self._bool_text(value, empty)
+            text = "" if value is None else str(value)
+        elif isinstance(f, BooleanField):
+            text = self._bool_text(value, empty)
+        elif isinstance(getattr(f, "remote_field", None), ManyToManyRel) and value is not None:
+            text = ", ".join(str(o) for o in value.all())
+        elif (
+            isinstance(getattr(f, "remote_field", None), (ForeignObjectRel, OneToOneField))
+            and value is not None
+        ):
+            text = str(value)
+        else:
+            text = str(display_for_field(value, f, empty))
+
+        text = sanitize_cell(text)
+        return text or empty
+
+    @staticmethod
+    def _bool_text(value: Any, empty: str) -> str:
+        if value is None:
+            return empty
+        return "True" if value else "False"
 
     # ---- save flow -----------------------------------------------------
 

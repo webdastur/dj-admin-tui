@@ -23,9 +23,6 @@ contracts pin the right *signatures*, but only Pilot proves the
 
 from __future__ import annotations
 
-import datetime as dt
-import importlib
-
 import pytest
 
 from admin_tui._internal.session import TuiSession
@@ -33,70 +30,7 @@ from admin_tui.app import AdminTuiApp
 from admin_tui.screens.change import ChangeScreen
 from admin_tui.screens.changelist import ChangelistScreen
 from admin_tui.screens.index import IndexScreen
-from admin_tui.sites import tui_site
-from sample_project.library.models import Author, Book
-
-
-@pytest.fixture
-def with_overlays():
-    """Reload library.tui so BookTui + AuthorTui + LogEntryScreen register."""
-    tui_site._registry.clear()
-    tui_site._synth_cache.clear()
-    tui_site._screens.clear()
-    import sample_project.library.tui as tui_module
-
-    importlib.reload(tui_module)
-    yield
-    tui_site._registry.clear()
-    tui_site._synth_cache.clear()
-    tui_site._screens.clear()
-
-
-@pytest.fixture
-def seeded_books(transactional_db):
-    """A handful of books spanning 'Tolkien' (2) and 'Lewis' (1).
-
-    Uses `transactional_db` (not `db`) because Pilot runs the App in a
-    worker thread, and Django's thread-local connections + SQLite's
-    default journal mode would deadlock if we held a write transaction
-    in the main thread while the App thread reads the same tables.
-    transactional_db commits to the test DB so cross-connection reads
-    work.
-    """
-    tolkien = Author.objects.create(name="J.R.R. Tolkien")
-    lewis = Author.objects.create(name="C.S. Lewis")
-    pratchett = Author.objects.create(name="Terry Pratchett")
-    Book.objects.create(
-        title="The Hobbit",
-        author=tolkien,
-        published=dt.date(1937, 9, 21),
-        featured=False,
-        color="#000000",
-    )
-    Book.objects.create(
-        title="The Lord of the Rings",
-        author=tolkien,
-        published=dt.date(1954, 7, 29),
-        featured=False,
-        color="#000000",
-    )
-    Book.objects.create(
-        title="The Lion, the Witch and the Wardrobe",
-        author=lewis,
-        published=dt.date(1950, 10, 16),
-        featured=False,
-        color="#000000",
-    )
-    Book.objects.create(
-        title="Mort",
-        author=pratchett,
-        published=dt.date(1987, 11, 1),
-        featured=False,
-        color="#000000",
-    )
-    # Materialise to a list so Pilot's async-context queries don't have to
-    # share the cursor with a lazy queryset.
-    return list(Book.objects.all())
+from sample_project.library.models import Book
 
 
 def _find_model_row_index(list_view, model_name: str) -> int:
