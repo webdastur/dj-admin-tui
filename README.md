@@ -1,7 +1,7 @@
 # dj-admin-tui
 
-[![PyPI version](https://img.shields.io/pypi/v/dj-admin-tui.svg)](https://pypi.org/project/dj-admin-tui/)
-[![Python versions](https://img.shields.io/pypi/pyversions/dj-admin-tui.svg)](https://pypi.org/project/dj-admin-tui/)
+[![PyPI version](https://img.shields.io/pypi/v/dj-admin-tui.svg?v=2)](https://pypi.org/project/dj-admin-tui/)
+[![Python versions](https://img.shields.io/pypi/pyversions/dj-admin-tui.svg?v=2)](https://pypi.org/project/dj-admin-tui/)
 [![Django versions](https://img.shields.io/badge/django-4.2%20%7C%205.2%20%7C%206.0-0C4B33.svg)](https://www.djangoproject.com/)
 [![CI](https://github.com/webdastur/dj-admin-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/webdastur/dj-admin-tui/actions/workflows/ci.yml)
 [![Docs](https://readthedocs.org/projects/dj-admin-tui/badge/?version=latest)](https://dj-admin-tui.readthedocs.io)
