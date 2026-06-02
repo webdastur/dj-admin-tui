@@ -30,6 +30,7 @@ Initial public release.
   overridden with a project `.tcss`.
 - Public API of five names: `register`, `TuiAdmin`, `tui_site`, `field_widgets`,
   `AdminTuiApp`.
+- Documentation site (MkDocs Material) published on Read the Docs.
 
 [Unreleased]: https://github.com/webdastur/dj-admin-tui/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/webdastur/dj-admin-tui/releases/tag/v0.0.1
