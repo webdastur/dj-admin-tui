@@ -17,7 +17,7 @@ It works with **zero configuration**: any project that has `ModelAdmin`s gets a
 working terminal admin with no extra code. Write a `tui.py` only when you want
 TUI-specific behaviour.
 
-![dj-admin-tui — the changelist screen: a sortable books table, a filter sidebar, pagination, and a keymap footer](https://raw.githubusercontent.com/webdastur/dj-admin-tui/main/dj_admin_tui.png)
+![dj-admin-tui — the changelist screen: a sortable books table, a filter sidebar, pagination, and a keymap footer](https://raw.githubusercontent.com/webdastur/dj-admin-tui/main/docs/dj_admin_tui.png)
 
 ## Why
 
