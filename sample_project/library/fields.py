@@ -3,8 +3,8 @@
 ColorField + ColorFormField exist so the field-widget registry has a
 specific form-field class to target. Mapping to plain `forms.CharField`
 would also catch every other CharField on the form, which isn't what
-US4 demonstrates. The custom form-field subclass is the v1 idiom for
-"this field has a custom widget."
+the custom-widget demo wants. The custom form-field subclass is the
+idiom for "this field has a custom widget."
 """
 
 from __future__ import annotations

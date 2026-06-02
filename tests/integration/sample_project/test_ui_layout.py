@@ -17,10 +17,10 @@ from __future__ import annotations
 import pytest
 from textual.widgets import Button
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.screens.change import ChangeScreen
-from admin_tui.screens.changelist import ChangelistScreen
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.screens.change import ChangeScreen
+from dj_admin_tui.screens.changelist import ChangelistScreen
 
 # `seeded_books` / `with_overlays` are package-level conftest fixtures (no import
 # needed); `_navigate_index_to` is a plain helper imported from test_navigation.
@@ -82,7 +82,6 @@ async def test_change_form_buttons_compact(superuser, seeded_books, with_overlay
         assert isinstance(screen, ChangeScreen)
         assert screen.mode == "edit"
         # Regression 3: every form button is a single compact row.
-        for bid in ("save-button", "save-add-button", "save-continue-button",
-                    "cancel-button"):
+        for bid in ("save-button", "save-add-button", "save-continue-button", "cancel-button"):
             b = screen.query_one(f"#{bid}", Button)
             assert b.size.height == 1, (bid, b.size)

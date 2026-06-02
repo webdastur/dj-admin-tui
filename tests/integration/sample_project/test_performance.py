@@ -1,4 +1,4 @@
-"""SC-002 performance baseline — 100k-row changelist page transitions.
+"""Performance baseline — 100k-row changelist page transitions.
 
 Seeds 100,000 Book rows via bulk_create, then times 10 consecutive
 page transitions through `_build_changelist`. The page-transition
@@ -16,13 +16,12 @@ import time
 
 import pytest
 
-from admin_tui.core.changelist import _build_changelist
-from admin_tui.core.request import build_request
+from dj_admin_tui.core.changelist import _build_changelist
+from dj_admin_tui.core.request import build_request
 from sample_project.library.models import Author, Book
 
-
 PER_PAGE_TARGET = 0.3  # 300 ms p95
-TOTAL_TARGET = 3.0     # 10 transitions × ~300 ms
+TOTAL_TARGET = 3.0  # 10 transitions × ~300 ms
 
 
 @pytest.mark.slow
@@ -65,14 +64,12 @@ def test_100k_rows_page_transition_under_target(superuser):
     # 10 samples → p95 is the worst sample.
     p95 = transitions_desc[0]
 
-    print(f"\n100k changelist transitions: total {total:.2f}s, p95 {p95*1000:.0f}ms")
-    print(f"  individual: {[f'{t*1000:.0f}ms' for t in transitions]}")
+    print(f"\n100k changelist transitions: total {total:.2f}s, p95 {p95 * 1000:.0f}ms")
+    print(f"  individual: {[f'{t * 1000:.0f}ms' for t in transitions]}")
 
     assert total < TOTAL_TARGET, (
-        f"10 page transitions took {total:.2f}s, target was {TOTAL_TARGET}s "
-        f"(see SC-002)."
+        f"10 page transitions took {total:.2f}s, target was {TOTAL_TARGET}s."
     )
     assert p95 < PER_PAGE_TARGET, (
-        f"p95 page transition was {p95*1000:.0f}ms, target was "
-        f"{PER_PAGE_TARGET*1000:.0f}ms (see SC-002)."
+        f"p95 page transition was {p95 * 1000:.0f}ms, target was {PER_PAGE_TARGET * 1000:.0f}ms."
     )

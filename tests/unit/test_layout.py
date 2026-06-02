@@ -1,4 +1,4 @@
-"""Unit tests for the changelist layout helpers (US1 / FR-001..005, SC-001).
+"""Unit tests for the changelist layout helpers.
 
 The critical invariant: `compute_column_widths` is a pure function of
 (columns, rows, caps) — there is no "selected row" input, so widths cannot
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from rich.cells import cell_len
 
-from admin_tui.widgets.layout import (
+from dj_admin_tui.widgets.layout import (
     MAX_COL,
     MIN_COL,
     ColumnSpec,
@@ -18,7 +18,6 @@ from admin_tui.widgets.layout import (
     sanitize_cell,
     truncate_cell,
 )
-
 
 # ---- truncate_cell ---------------------------------------------------
 

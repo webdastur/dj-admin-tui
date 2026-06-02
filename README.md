@@ -1,12 +1,48 @@
-# Django Admin TUI
+# dj-admin-tui
 
-A terminal UI that drives the Django admin: browse, search, filter, sort,
-create, edit, delete, and run admin actions — all from the terminal, honoring
-the same permissions and audit as the web admin.
+[![PyPI version](https://img.shields.io/pypi/v/dj-admin-tui.svg)](https://pypi.org/project/dj-admin-tui/)
+[![Python versions](https://img.shields.io/pypi/pyversions/dj-admin-tui.svg)](https://pypi.org/project/dj-admin-tui/)
+[![Django versions](https://img.shields.io/badge/django-4.2%20%7C%205.2%20%7C%206.0-0C4B33.svg)](https://www.djangoproject.com/)
+[![CI](https://github.com/webdastur/dj-admin-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/webdastur/dj-admin-tui/actions/workflows/ci.yml)
+[![Docs](https://readthedocs.org/projects/dj-admin-tui/badge/?version=latest)](https://dj-admin-tui.readthedocs.io)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
-> **Working title.** The PyPI distribution name is TBD (`django-admin-tui` is
-> taken); the Python import name is `admin_tui` and is stable regardless of the
-> final distribution name.
+A [Textual](https://textual.textualize.io/) terminal UI that drives the **Django
+admin** from your terminal: browse, search, filter, sort, create, edit, delete,
+and run admin actions — honoring the **same permissions and audit log** as the
+web admin, because it reuses Django's own admin internals rather than
+reimplementing them.
+
+It works with **zero configuration**: any project that has `ModelAdmin`s gets a
+working terminal admin with no extra code. Write a `tui.py` only when you want
+TUI-specific behaviour.
+
+![dj-admin-tui — the changelist screen: a sortable books table, a filter sidebar, pagination, and a keymap footer](https://raw.githubusercontent.com/webdastur/dj-admin-tui/main/dj_admin_tui.png)
+
+## Why
+
+Servers, CI shells, and SSH sessions don't have a browser. `dj-admin-tui` gives
+you the day-to-day admin workflows — find a record, fix a field, run a bulk
+action — over a plain terminal, with the exact permission scoping and audit
+trail the web admin would apply.
+
+## Features
+
+- **Reuses the admin, never reimplements it.** Querysets, search, filtering,
+  ordering, pagination, form construction & validation, permissions, actions,
+  and audit all come from your registered `ModelAdmin` and Django's own
+  internals. The TUI only renders and adds interaction.
+- **Zero-config.** A project with `ModelAdmin`s and no `tui.py` works fully.
+- **Full CRUD** — create / edit / delete with the admin's fieldsets, widgets,
+  and validation, including foreign keys, many-to-many, and multi-line text.
+- **Search, sort, and filter** — driven by `search_fields`, `list_filter`, and
+  `get_ordering_field_columns`, identical to the web changelist.
+- **Admin actions** — bulk actions and per-row actions, with confirmation.
+- **Permission-scoped & audited** — every operation runs as a chosen user and
+  writes `LogEntry` rows, exactly like the web admin.
+- **Keyboard and mouse** — arrows/Enter or click; `?` shows the keymap.
+- **Themeable** — bundled themes plus a single-stylesheet design system you can
+  override with your own `.tcss`.
 
 ## Trust model — read first
 
@@ -21,12 +57,12 @@ port, no token, no remote API.
 ## Install
 
 ```bash
-pip install django-admin-tui-mvp     # name TBD; import name is `admin_tui`
+pip install dj-admin-tui
 ```
 
 ```python
 # settings.py
-INSTALLED_APPS += ["admin_tui"]
+INSTALLED_APPS += ["dj_admin_tui"]
 ```
 
 ## Launch
@@ -37,22 +73,42 @@ python manage.py admin_tui --user alice   # run as alice (must be is_staff)
 ```
 
 You land on an index of every app and model the web admin would show that user.
-Arrows + Enter (or the mouse) to drill in, `q` to quit, `?` for help. A project
-with `ModelAdmin`s and **no** `tui.py` works fully — that's the zero-config
-promise; you write a `tui.py` only to add TUI-specific behaviour.
+Arrows + Enter (or the mouse) to drill in, `q` to quit, `?` for help.
+
+## Customising (optional)
+
+Drop a `tui.py` next to your `admin.py` — it is autodiscovered like `admin.py`:
+
+```python
+# myapp/tui.py
+from dj_admin_tui import register, TuiAdmin
+
+@register(Book)
+class BookTui(TuiAdmin):
+    row_actions = ["mark_featured"]   # TUI-only per-row actions
+```
+
+The public API is exactly five names; everything else under `dj_admin_tui.*`
+is internal and may change without notice:
+
+```python
+from dj_admin_tui import register, TuiAdmin, tui_site, field_widgets, AdminTuiApp
+```
 
 ## Documentation
 
-| Doc | What it covers |
-|-----|----------------|
-| [docs/installation.md](./docs/installation.md) | Requirements, install, first launch, trust model |
-| [docs/usage.md](./docs/usage.md) | Keymap, mouse map, search / sort / filter, the screens |
-| [docs/configuration.md](./docs/configuration.md) | The `ADMIN_TUI` settings dict |
-| [docs/cli.md](./docs/cli.md) | The `manage.py admin_tui` command, flags, exit codes |
-| [docs/theming.md](./docs/theming.md) | Bundled themes, custom themes, `.tcss` overrides |
-| [docs/extending.md](./docs/extending.md) | `TuiAdmin` overlays, hooks, custom widgets & screens |
-| [docs/api.md](./docs/api.md) | The public Python API and stability policy |
-| [docs/architecture.md](./docs/architecture.md) | How it fits together; reuse-the-admin design |
+Full docs live at **[dj-admin-tui.readthedocs.io](https://dj-admin-tui.readthedocs.io)**:
+
+| Topic | What it covers |
+|-------|----------------|
+| [Installation](https://dj-admin-tui.readthedocs.io/en/latest/installation/) | Requirements, install, first launch, trust model |
+| [Usage](https://dj-admin-tui.readthedocs.io/en/latest/usage/) | Keymap, mouse map, search / sort / filter, the screens |
+| [Configuration](https://dj-admin-tui.readthedocs.io/en/latest/configuration/) | The `ADMIN_TUI` settings dict |
+| [CLI](https://dj-admin-tui.readthedocs.io/en/latest/cli/) | The `manage.py admin_tui` command, flags, exit codes |
+| [Theming](https://dj-admin-tui.readthedocs.io/en/latest/theming/) | Bundled themes, custom themes, `.tcss` overrides |
+| [Extending](https://dj-admin-tui.readthedocs.io/en/latest/extending/) | `TuiAdmin` overlays, hooks, custom widgets & screens |
+| [API](https://dj-admin-tui.readthedocs.io/en/latest/api/) | The public Python API and stability policy |
+| [Architecture](https://dj-admin-tui.readthedocs.io/en/latest/architecture/) | How it fits together; the reuse-the-admin design |
 
 ## Supported versions
 
@@ -62,17 +118,11 @@ promise; you write a `tui.py` only to add TUI-specific behaviour.
 
 See [`pyproject.toml`](./pyproject.toml) for the exact ranges.
 
-## Stability
+## Contributing
 
-The entire public API is five names; everything else under `admin_tui.*` is
-internal and may change without notice:
-
-```python
-from admin_tui import register, TuiAdmin, tui_site, field_widgets, AdminTuiApp
-```
-
-Public changes follow SemVer with a deprecation path — see
-[docs/api.md](./docs/api.md).
+Issues and pull requests are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md)
+for the dev setup, test, and lint workflow. Public-API changes follow SemVer
+with a deprecation path.
 
 ## License
 

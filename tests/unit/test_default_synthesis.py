@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from django.contrib import admin as django_admin
 
-from admin_tui import TuiAdmin, tui_site
+from dj_admin_tui import TuiAdmin, tui_site
 from sample_project.library.models import Author, Book
 from sample_project.plain_app.models import Note
 

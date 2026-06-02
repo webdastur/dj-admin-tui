@@ -1,0 +1,64 @@
+site_name: dj-admin-tui
+site_description: A terminal UI for the Django admin — browse, search, edit, and run admin actions from the terminal.
+site_url: https://dj-admin-tui.readthedocs.io
+repo_url: https://github.com/webdastur/dj-admin-tui
+repo_name: webdastur/dj-admin-tui
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; Abdulaminkhon Khaydarov — MIT License
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Configuration: configuration.md
+  - CLI: cli.md
+  - Theming: theming.md
+  - Extending: extending.md
+  - API reference: api.md
+  - Architecture: architecture.md
+  - Changelog: changelog.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search

@@ -1,9 +1,9 @@
-"""US2 — full mouse support, additive to keyboard (FR-008..011, SC-002/006).
+"""Full mouse support, additive to keyboard.
 
 Drives the Showcase changelist with the mouse (clicks/double-clicks/offsets) and
 asserts every affordance mirrors its keyboard binding, and that a mouse-only and
-a keyboard-only path reach the same end state. Keyboard-only completion covers
-SC-006 (operable with mouse reporting disabled).
+a keyboard-only path reach the same end state. Keyboard-only completion confirms
+the app stays operable with mouse reporting disabled.
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ from __future__ import annotations
 import pytest
 from textual.widgets import DataTable
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.screens.change import ChangeScreen
-from admin_tui.screens.changelist import ChangelistScreen
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.screens.change import ChangeScreen
+from dj_admin_tui.screens.changelist import ChangelistScreen
 from sample_project.library.models import Showcase
 
 
@@ -36,11 +36,7 @@ async def _keyboard_open_showcase(pilot) -> None:
     from textual.widgets import ListView
 
     list_view = pilot.app.screen.query_one("#index-list", ListView)
-    idx = next(
-        i
-        for i, c in enumerate(list_view.children)
-        if getattr(c, "model", None) is Showcase
-    )
+    idx = next(i for i, c in enumerate(list_view.children) if getattr(c, "model", None) is Showcase)
     await pilot.press("down")
     for _ in range(idx):
         await pilot.press("down")
@@ -117,7 +113,7 @@ async def test_wheel_scroll_does_not_change_selection(superuser, showcases):
         await pilot.pause()
         await _click_showcase_in_index(pilot)
         screen = pilot.app.screen
-        # Select one row, then scroll — selection must persist (FR-009).
+        # Select one row, then scroll — selection must persist.
         await pilot.click("#changelist-table", offset=(1, 1))
         await pilot.pause()
         selected_before = set(screen.selected_pks)
@@ -129,7 +125,7 @@ async def test_wheel_scroll_does_not_change_selection(superuser, showcases):
 
 @pytest.mark.django_db
 async def test_mouse_and_keyboard_reach_same_selection(superuser, showcases):
-    """SC-002: mouse-only and keyboard-only paths reach the same end state."""
+    """Mouse-only and keyboard-only paths reach the same end state."""
     # Mouse path: click the checkbox of the focused (first) row.
     session_m = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session_m).run_test(size=(120, 30)) as pilot:
@@ -156,7 +152,7 @@ async def test_mouse_and_keyboard_reach_same_selection(superuser, showcases):
 
 @pytest.mark.django_db
 async def test_keyboard_only_workflow_completes(superuser, showcases):
-    """SC-006: the whole flow works with no mouse at all."""
+    """The whole flow works with no mouse at all."""
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(120, 30)) as pilot:
         await pilot.pause()

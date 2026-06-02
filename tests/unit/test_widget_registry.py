@@ -16,14 +16,14 @@ from __future__ import annotations
 
 from django import forms
 
-from admin_tui.options import TuiAdmin
-from admin_tui.widgets.defaults.boolean import boolean_widget
-from admin_tui.widgets.defaults.choice import choice_widget
-from admin_tui.widgets.defaults.foreign_key import foreign_key_widget
-from admin_tui.widgets.defaults.json_field import json_widget
-from admin_tui.widgets.defaults.numeric import numeric_widget
-from admin_tui.widgets.defaults.text import text_widget
-from admin_tui.widgets.registry import FieldWidgetRegistry, field_widgets
+from dj_admin_tui.options import TuiAdmin
+from dj_admin_tui.widgets.defaults.boolean import boolean_widget
+from dj_admin_tui.widgets.defaults.choice import choice_widget
+from dj_admin_tui.widgets.defaults.foreign_key import foreign_key_widget
+from dj_admin_tui.widgets.defaults.json_field import json_widget
+from dj_admin_tui.widgets.defaults.numeric import numeric_widget
+from dj_admin_tui.widgets.defaults.text import text_widget
+from dj_admin_tui.widgets.registry import FieldWidgetRegistry, field_widgets
 
 
 def _bound_field(form_field: forms.Field, value=None):
@@ -105,10 +105,10 @@ def test_overlay_override_beats_global_registry():
     """Per-overlay field_widgets must take precedence over global."""
     reg = FieldWidgetRegistry()
 
-    def global_factory(bf):  # noqa: ANN001
+    def global_factory(bf):
         return None
 
-    def overlay_factory(bf):  # noqa: ANN001
+    def overlay_factory(bf):
         return None
 
     reg.register(forms.CharField, global_factory)
@@ -131,7 +131,7 @@ def test_resolve_cache_is_warm_after_first_lookup():
 
     reg = FieldWidgetRegistry()
 
-    def factory(bf):  # noqa: ANN001
+    def factory(bf):
         return None
 
     reg.register(forms.CharField, factory)
@@ -144,7 +144,7 @@ def test_register_as_decorator_returns_factory():
     reg = FieldWidgetRegistry()
 
     @reg.register(forms.IntegerField)
-    def my_factory(bf):  # noqa: ANN001
+    def my_factory(bf):
         return None
 
     bf = _bound_field(forms.IntegerField(), value=1)

@@ -6,11 +6,16 @@ import sys
 from pathlib import Path
 
 # Make the sample_project package importable regardless of cwd: the settings
-# path is `sample_project.sample_project.settings`, which resolves only if
-# the repo root (the parent of `sample_project/`) is on sys.path.
-REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# path is `sample_project.sample_project.settings`, which resolves only if the
+# repo root (the parent of `sample_project/`) is on sys.path. Running this file
+# as a script also puts its own directory (`<repo>/sample_project`) on sys.path,
+# which would shadow the outer `sample_project` package with the inner one — so
+# drop that entry (and the empty cwd entry) before adding the repo root.
+SCRIPT_DIR = str(Path(__file__).resolve().parent)
+REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+sys.path[:] = [p for p in sys.path if p not in ("", SCRIPT_DIR)]
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 
 def main():

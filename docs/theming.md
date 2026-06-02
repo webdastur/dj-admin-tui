@@ -40,26 +40,26 @@ A `.tcss` file alone is enough if you want full control. It references the
 active theme's variables:
 
 ```css
-/* myproject/admin_tui.tcss */
+/* myproject/dj_admin_tui.tcss */
 ChangelistScreen #filter-sidebar {
     border-left: solid $accent;
 }
 ```
 
 ```python
-ADMIN_TUI = {"THEME": "myproject/admin_tui.tcss"}
+ADMIN_TUI = {"THEME": "myproject/dj_admin_tui.tcss"}
 ```
 
 ## Registering your own theme
 
 Subclass `AdminTuiApp`, register a `textual.theme.Theme`, and select it by name.
 This uses only the public `AdminTuiApp` subclass point and Textual's own
-`register_theme` — no new `admin_tui` API:
+`register_theme` — no new `dj_admin_tui` API:
 
 ```python
 # myproject/tui_app.py
 from textual.theme import Theme
-from admin_tui import AdminTuiApp
+from dj_admin_tui import AdminTuiApp
 
 ACME = Theme(name="acme", primary="#5A2A82", dark=True)  # … full Theme
 

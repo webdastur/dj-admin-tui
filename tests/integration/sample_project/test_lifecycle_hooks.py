@@ -1,4 +1,4 @@
-"""Lifecycle hook contract (FR-024 slot 7), isolated from end-to-end UI flow.
+"""Lifecycle hook contract (extension slot 7), isolated from end-to-end UI flow.
 
 Complements test_overlay.py's end-to-end coverage with focused, ordering-
 specific assertions:
@@ -9,7 +9,7 @@ specific assertions:
   (c) before_action fires before func(...) and after_action fires after,
       receiving the captured messages in `result`.
   (d) On action exception, after_action's success branch is NOT called
-      (the FR-019 anchor at the hook-contract level rather than the
+      (covered at the hook-contract level rather than the
       _run_action level).
 """
 
@@ -20,12 +20,12 @@ import datetime as dt
 import pytest
 from django.contrib.admin.models import LogEntry
 
-from admin_tui.core.actions import _run_action
-from admin_tui.core.audit import _change_message, _log_addition, _log_change
-from admin_tui.core.forms import _build_form
-from admin_tui.core.request import build_request
-from admin_tui.options import TuiAdmin
-from admin_tui.sites import tui_site
+from dj_admin_tui.core.actions import _run_action
+from dj_admin_tui.core.audit import _change_message, _log_addition, _log_change
+from dj_admin_tui.core.forms import _build_form
+from dj_admin_tui.core.request import build_request
+from dj_admin_tui.options import TuiAdmin
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Author, Book
 
 
@@ -33,7 +33,7 @@ from sample_project.library.models import Author, Book
 def _reset_tui_site():
     tui_site._registry.clear()
     tui_site._synth_cache.clear()
-    yield
+    return
 
 
 @pytest.fixture

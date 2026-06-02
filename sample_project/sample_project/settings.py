@@ -19,7 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "admin_tui",
+    "dj_admin_tui",
     "sample_project.library",
     "sample_project.plain_app",
 ]
@@ -62,7 +62,7 @@ LANGUAGE_CODE = "en-us"
 
 STATIC_URL = "static/"
 
-# Zero-config: exercising FR-021 means the host project can omit ADMIN_TUI
-# entirely. We declare it as an empty dict to document the namespace exists
+# Zero-config: the host project can omit ADMIN_TUI entirely. We declare it
+# as an empty dict to document the namespace exists
 # and to let tests flip individual keys without setting the whole dict.
 ADMIN_TUI = {}

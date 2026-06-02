@@ -5,10 +5,10 @@ Coverage targets:
   - JSONField (metadata).
   - DateField and BooleanField (published, featured, archived).
   - TextField (summary, bio).
-  - Custom ColorField (added by US4 / T069).
+  - Custom ColorField.
 
 The Book.archived flag exists so `BookAdmin` can declare a bulk action
-that mutates it (T041 — exercises FR-017 bulk-action surface).
+that mutates it (exercises the bulk-action surface).
 """
 
 from __future__ import annotations
@@ -54,12 +54,10 @@ class Book(models.Model):
     archived = models.BooleanField(default=False)
     metadata = models.JSONField(default=dict, blank=True)
     color = ColorField()
-    # Populated by BookTui.before_save (US4 lifecycle-hook demonstration).
+    # Populated by BookTui.before_save (lifecycle-hook demonstration).
     # `editable=False` keeps it out of every form (admin + TUI), so the
     # only path that writes it is the overlay's lifecycle hook.
-    normalised_title = models.CharField(
-        max_length=256, blank=True, default="", editable=False
-    )
+    normalised_title = models.CharField(max_length=256, blank=True, default="", editable=False)
 
     class Meta:
         ordering = ("title",)
@@ -69,8 +67,8 @@ class Book(models.Model):
 
 
 class Showcase(models.Model):
-    """Covers the full default-widget set for the v2 save matrix (US3) and the
-    wide-column truncation / filter tests (US1).
+    """Covers the full default-widget set for the v2 save matrix and the
+    wide-column truncation / filter tests.
 
     Intentionally additive — separate table from `Book` so v1 fixtures and
     tests are untouched. `description` holds long values for truncation;
@@ -111,7 +109,7 @@ class Showcase(models.Model):
 
 
 class BookChapter(models.Model):
-    """Inline relation to Book — fixture for the inlines test (R15 / FR-024)."""
+    """Inline relation to Book — fixture for the inlines test."""
 
     book = models.ForeignKey(
         Book,

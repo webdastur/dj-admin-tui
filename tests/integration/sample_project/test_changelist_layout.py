@@ -1,11 +1,11 @@
-"""US1 — stable, Django-like changelist (FR-001..005, SC-001).
+"""Stable, Django-like changelist.
 
 Drives the Showcase changelist headlessly via Pilot and asserts:
-  - column widths + row heights are unchanged as the cursor moves (SC-001);
+  - column widths + row heights are unchanged as the cursor moves;
   - long cells are truncated in the table but the focused row's full value is
-    shown in the footer preview (FR-002/003);
-  - selecting a list_filter choice yields the web admin's result set (FR-004);
-  - a narrow terminal scrolls horizontally and drops no columns (FR-005).
+    shown in the footer preview;
+  - selecting a list_filter choice yields the web admin's result set;
+  - a narrow terminal scrolls horizontally and drops no columns.
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from __future__ import annotations
 import pytest
 from textual.widgets import DataTable, Static
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.core.changelist import _build_changelist
-from admin_tui.screens.changelist import ChangelistScreen
-from admin_tui.widgets.filters import FilterSidebar, extract_filter_groups
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.core.changelist import _build_changelist
+from dj_admin_tui.screens.changelist import ChangelistScreen
+from dj_admin_tui.widgets.filters import FilterSidebar, extract_filter_groups
 from sample_project.library.models import Showcase
 
 
@@ -59,7 +59,7 @@ async def test_column_widths_stable_across_cursor_moves(superuser, showcases):
             await pilot.press("down")
             await pilot.pause()
         after = _column_widths(table)
-        assert before == after, "column widths changed on selection (SC-001 regression)"
+        assert before == after, "column widths changed on selection"
         assert table.row_count == heights_before
 
 
@@ -99,9 +99,7 @@ async def test_filter_sidebar_shown_and_matches_web_admin(superuser, showcases):
 
         # Apply the "is_active = Yes" filter the way the sidebar would, and
         # compare row count to the web admin's result set for the same param.
-        screen.on_filter_sidebar_filter_chosen(
-            FilterSidebar.FilterChosen("?is_active__exact=1")
-        )
+        screen.on_filter_sidebar_filter_chosen(FilterSidebar.FilterChosen("?is_active__exact=1"))
         await pilot.pause()
         table = pilot.app.screen.query_one("#changelist-table", DataTable)
         expected = Showcase.objects.filter(is_active=True).count()

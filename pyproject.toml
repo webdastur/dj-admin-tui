@@ -3,17 +3,15 @@ requires = ["hatchling>=1.29"]
 build-backend = "hatchling.build"
 
 [project]
-# TODO(PACKAGE_NAME): "django-admin-tui" is taken on PyPI. Pick a final
-# distribution name before v1.0 publish. The import name is `admin_tui` and
-# is stable regardless of the distribution name.
-name = "django-admin-tui-mvp"
-version = "0.0.0"
+# Distribution name on PyPI is `dj-admin-tui`; the import package is `dj_admin_tui`.
+name = "dj-admin-tui"
+version = "0.0.1"
 description = "A terminal UI for the Django admin — browse, search, edit, and run admin actions from the terminal."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [{ name = "Abdulaminkhon Khaydarov", email = "webdasturuz@gmail.com" }]
-keywords = ["django", "admin", "tui", "terminal", "textual"]
+keywords = ["django", "admin", "tui", "terminal", "textual", "console", "ssh"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -38,32 +36,36 @@ dependencies = [
     "textual>=8.2,<9",
 ]
 
+# Installable extras. Dev tooling lives in the PEP 735 `[dependency-groups]`
+# below (used by `uv sync --dev` / CI); `docs` is a pip-installable extra so
+# Read the Docs can build the site with `pip install .[docs]`.
 [project.optional-dependencies]
-dev = [
-    "pytest>=9.0",
-    "pytest-django>=4.12",
-    "pytest-asyncio>=1.4",
-    "ruff>=0.14",
+docs = [
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=10.0",
 ]
 
 [project.urls]
-"Source" = "https://github.com/abdulaminkhon/djangotui"
-"Issues" = "https://github.com/abdulaminkhon/djangotui/issues"
+Homepage = "https://github.com/webdastur/dj-admin-tui"
+Documentation = "https://dj-admin-tui.readthedocs.io"
+Source = "https://github.com/webdastur/dj-admin-tui"
+Issues = "https://github.com/webdastur/dj-admin-tui/issues"
+Changelog = "https://github.com/webdastur/dj-admin-tui/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["admin_tui"]
+packages = ["dj_admin_tui"]
 # Ship the bundled design-system stylesheet alongside the Python modules.
-artifacts = ["admin_tui/**/*.tcss"]
+artifacts = ["dj_admin_tui/**/*.tcss"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/admin_tui",
+    "/dj_admin_tui",
     "/LICENSE",
     "/README.md",
     "/pyproject.toml",
 ]
 # sample_project/ and tests/ are intentionally excluded from the wheel and
-# sdist (Constitution V — small surface; dev assets stay in the repo only).
+# sdist — they are dev assets that stay in the repo only.
 
 [dependency-groups]
 # PEP 735 dev group. `uv sync --dev` and `uv sync --group dev` both install it.
@@ -71,6 +73,7 @@ dev = [
     "pytest>=9.0",
     "pytest-django>=4.12",
     "pytest-asyncio>=1.4",
+    "pytest-timeout>=2.3",
     "ruff>=0.14",
 ]
 
@@ -93,11 +96,23 @@ select = [
     "RUF",  # ruff-specific
 ]
 ignore = [
-    "E501",   # line too long — formatter handles it
+    "E501",     # line too long — formatter handles it
+    # This is a TUI: source strings, comments, and docstrings intentionally
+    # use typographic glyphs (› ‹ • ✔ ✘ × — …) and box-drawing characters.
+    "RUF001",   # ambiguous character in a string
+    "RUF002",   # ambiguous character in a docstring
+    "RUF003",   # ambiguous character in a comment
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["B018"]   # tests can have useless expressions
+"tests/**/*.py" = [
+    "B018",     # tests can have useless expressions
+    "RUF012",   # test stand-in overlay classes use mutable class attrs as fixtures
+]
+# The sample project is idiomatic Django app code: Model / ModelForm / ModelAdmin
+# classes use bare mutable class attributes (list_display, actions, fieldsets,
+# Meta options) by convention, so RUF012 and DJ007 are false positives here.
+"sample_project/**/*.py" = ["RUF012", "DJ007"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "sample_project.sample_project.settings"

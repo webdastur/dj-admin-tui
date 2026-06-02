@@ -16,8 +16,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.messages import add_message
 from django.http import HttpRequest
 
-from admin_tui.core.messages import _CapturingMessageStorage
-from admin_tui.core.request import build_request
+from dj_admin_tui.core.messages import _CapturingMessageStorage
+from dj_admin_tui.core.request import build_request
 
 
 def test_build_request_attaches_user(db):

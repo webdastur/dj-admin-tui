@@ -1,10 +1,10 @@
 # Public API
 
 The entire top-level public surface is five names. Everything else under
-`admin_tui.*` is internal and may change without notice.
+`dj_admin_tui.*` is internal and may change without notice.
 
 ```python
-from admin_tui import (
+from dj_admin_tui import (
     register,        # decorator/function — register a TuiAdmin for a model
     TuiAdmin,        # base class for per-model overlays
     tui_site,        # the default TuiSite singleton
@@ -13,7 +13,7 @@ from admin_tui import (
 )
 ```
 
-A regression test asserts `admin_tui.__all__` equals this list exactly.
+A regression test asserts `dj_admin_tui.__all__` equals this list exactly.
 
 ## `register`
 

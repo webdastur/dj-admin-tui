@@ -1,4 +1,4 @@
-"""A model in an app with NO tui.py — exercises FR-021 zero-config (SC-001).
+"""A model in an app with NO tui.py — exercises zero-config.
 
 The TUI must render and operate this model fully with no TUI-specific
 declarations anywhere. The default-overlay synthesis path is the only

@@ -16,6 +16,9 @@ build/
 *.egg
 wheels/
 
+# Docs site build output (MkDocs)
+site/
+
 # Test / coverage
 .coverage
 .coverage.*
@@ -42,4 +45,4 @@ Thumbs.db
 *.swo
 
 # uv
-# uv.lock is intentionally committed (FR-035 reproducible installs).
+# uv.lock is intentionally committed for reproducible installs.

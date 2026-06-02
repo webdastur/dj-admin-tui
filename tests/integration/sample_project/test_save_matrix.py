@@ -1,4 +1,4 @@
-"""US3 — create/edit saves for every default field type (FR-012..014, SC-003).
+"""Create/edit saves for every default field type.
 
 The headline regression: many-to-many (and other multi-value) fields used to be
 rendered with the single-value foreign-key Select and dropped on save. This
@@ -14,11 +14,11 @@ from decimal import Decimal
 import pytest
 from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.core.request import build_request
-from admin_tui.screens.change import ChangeScreen
-from admin_tui.sites import tui_site
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.core.request import build_request
+from dj_admin_tui.screens.change import ChangeScreen
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Showcase
 
 
@@ -165,5 +165,6 @@ async def test_invalid_value_surfaces_error_and_does_not_save(superuser):
 
         # Nothing saved; the screen is still mounted with a field error.
         assert Showcase.objects.count() == before
-        assert screen.form is not None and not screen.form.is_valid()
+        assert screen.form is not None
+        assert not screen.form.is_valid()
         assert "quantity" in screen.form.errors

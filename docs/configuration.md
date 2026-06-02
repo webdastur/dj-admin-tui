@@ -7,7 +7,7 @@ keys raise `ImproperlyConfigured` at startup so typos are loud.
 ```python
 # settings.py
 ADMIN_TUI = {
-    "APP_CLASS": "admin_tui.app.AdminTuiApp",   # dotted import path
+    "APP_CLASS": "dj_admin_tui.app.AdminTuiApp",   # dotted import path
     "PAGE_SIZE": 50,                            # default changelist page size
     "THEME_NAME": None,                         # bundled/registered theme name
     "THEME": None,                              # path to a .tcss override
@@ -20,7 +20,7 @@ ADMIN_TUI = {
 
 | Key | Type | Default | Effect |
 |-----|------|---------|--------|
-| `APP_CLASS` | dotted path | `admin_tui.app.AdminTuiApp` | The Textual `App` subclass to launch. Must import and subclass `AdminTuiApp`. Overridable per launch with `--app`. |
+| `APP_CLASS` | dotted path | `dj_admin_tui.app.AdminTuiApp` | The Textual `App` subclass to launch. Must import and subclass `AdminTuiApp`. Overridable per launch with `--app`. |
 | `PAGE_SIZE` | int (1–10000) | `50` | Default changelist page size when a `ModelAdmin` doesn't set `list_per_page`. |
 | `THEME_NAME` | str / `None` | `None` → `"django-dark"` | Selects the colour theme (palette). Must name a registered theme. Overridable with `--theme-name`. See [theming.md](./theming.md). |
 | `THEME` | path / `None` | `None` | A Textual `.tcss` file layered on top of the theme. Overridable with `--theme`. |

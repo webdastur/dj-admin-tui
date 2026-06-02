@@ -1,4 +1,4 @@
-"""Unit tests for THEME_NAME settings validation + precedence (US4 / FR-015..018)."""
+"""Unit tests for THEME_NAME settings validation + precedence."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.test import override_settings
 
-from admin_tui import conf
-from admin_tui.themes import DEFAULT_THEME_NAME, resolve_theme_name, valid_theme_names
+from dj_admin_tui import conf
+from dj_admin_tui.themes import DEFAULT_THEME_NAME, resolve_theme_name, valid_theme_names
 
 
 def test_theme_name_defaults_to_none_then_django_dark():
@@ -29,16 +29,17 @@ def test_registered_theme_name_validates():
 
 
 def test_unknown_theme_name_raises_improperly_configured():
-    with override_settings(ADMIN_TUI={"THEME_NAME": "no-such-theme"}):
-        with pytest.raises(ImproperlyConfigured) as exc:
-            conf._load()
+    with (
+        override_settings(ADMIN_TUI={"THEME_NAME": "no-such-theme"}),
+        pytest.raises(ImproperlyConfigured) as exc,
+    ):
+        conf._load()
     assert "THEME_NAME" in str(exc.value)
 
 
 def test_theme_name_must_be_str():
-    with override_settings(ADMIN_TUI={"THEME_NAME": 123}):
-        with pytest.raises(ImproperlyConfigured):
-            conf._load()
+    with override_settings(ADMIN_TUI={"THEME_NAME": 123}), pytest.raises(ImproperlyConfigured):
+        conf._load()
 
 
 def test_django_is_a_valid_name():

@@ -1,9 +1,8 @@
 """End-to-end TUI navigation via Pilot.
 
 Drives the actual TUI through the operator's expected flows against the
-live ORM. These would have caught the four integration bugs fixed in
-commit 8a46640 — none of which the contract-level Phase 1-7 tests hit
-because their Pilot coverage stopped at IndexScreen.on_mount:
+live ORM. These exercise the runtime assembly that contract-level tests
+miss because their Pilot coverage stopped at IndexScreen.on_mount:
 
   1. ChangelistScreen.self.query : dict shadowed Textual's Screen.query()
      DOM method → TypeError on push_screen → caught here by
@@ -25,11 +24,11 @@ from __future__ import annotations
 
 import pytest
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.screens.change import ChangeScreen
-from admin_tui.screens.changelist import ChangelistScreen
-from admin_tui.screens.index import IndexScreen
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.screens.change import ChangeScreen
+from dj_admin_tui.screens.changelist import ChangelistScreen
+from dj_admin_tui.screens.index import IndexScreen
 from sample_project.library.models import Book
 
 
@@ -78,16 +77,12 @@ async def test_index_lists_seeded_models(superuser, seeded_books, with_overlays)
     async with AdminTuiApp(session=session).run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         list_view = pilot.app.screen.query_one("#index-list", ListView)
-        models = {
-            c.model.__name__ for c in list_view.children if hasattr(c, "model")
-        }
+        models = {c.model.__name__ for c in list_view.children if hasattr(c, "model")}
         assert {"Book", "Author", "Tag", "Note"}.issubset(models)
 
 
 @pytest.mark.django_db
-async def test_index_to_changelist_navigation(
-    superuser, seeded_books, with_overlays
-):
+async def test_index_to_changelist_navigation(superuser, seeded_books, with_overlays):
     """Pushing ChangelistScreen must NOT raise (bug 1: Screen.query shadowing).
 
     Also exercises bug 2 (SynchronousOnlyOperation): the ChangelistScreen's
@@ -107,9 +102,7 @@ async def test_index_to_changelist_navigation(
 
 
 @pytest.mark.django_db
-async def test_changelist_renders_seeded_rows(
-    superuser, seeded_books, with_overlays
-):
+async def test_changelist_renders_seeded_rows(superuser, seeded_books, with_overlays):
     """The DataTable populates with the seeded rows after on_mount."""
     from textual.widgets import DataTable
 
@@ -124,9 +117,7 @@ async def test_changelist_renders_seeded_rows(
 
 
 @pytest.mark.django_db
-async def test_search_narrows_changelist(
-    superuser, seeded_books, with_overlays
-):
+async def test_search_narrows_changelist(superuser, seeded_books, with_overlays):
     """`/` opens search modal; submitting 'Tolkien' narrows to 2 rows."""
     from textual.widgets import DataTable, Input
 
@@ -145,9 +136,7 @@ async def test_search_narrows_changelist(
 
 
 @pytest.mark.django_db
-async def test_enter_on_row_opens_detail(
-    superuser, seeded_books, with_overlays
-):
+async def test_enter_on_row_opens_detail(superuser, seeded_books, with_overlays):
     """Bug 4: DataTable.RowSelected → action_open_detail → ChangeScreen mounted."""
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:
@@ -161,9 +150,7 @@ async def test_enter_on_row_opens_detail(
 
 
 @pytest.mark.django_db
-async def test_space_toggles_multi_select(
-    superuser, seeded_books, with_overlays
-):
+async def test_space_toggles_multi_select(superuser, seeded_books, with_overlays):
     """Space toggles a row's selection; selected_pks reflects state."""
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:
@@ -187,11 +174,9 @@ async def test_space_toggles_multi_select(
 
 
 @pytest.mark.django_db
-async def test_x_opens_action_picker_modal(
-    superuser, seeded_books, with_overlays
-):
+async def test_x_opens_action_picker_modal(superuser, seeded_books, with_overlays):
     """`x` after at least one selection opens the action picker."""
-    from admin_tui.screens.changelist import _ActionPickerModal
+    from dj_admin_tui.screens.changelist import _ActionPickerModal
 
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:
@@ -205,9 +190,7 @@ async def test_x_opens_action_picker_modal(
 
 
 @pytest.mark.django_db
-async def test_x_with_no_selection_does_not_open_picker(
-    superuser, seeded_books, with_overlays
-):
+async def test_x_with_no_selection_does_not_open_picker(superuser, seeded_books, with_overlays):
     """`x` without any selected rows surfaces a warning, doesn't push modal."""
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:
@@ -225,9 +208,7 @@ async def test_x_with_no_selection_does_not_open_picker(
 
 
 @pytest.mark.django_db
-async def test_overlay_key_binding_fires_on_row(
-    superuser, seeded_books, with_overlays
-):
+async def test_overlay_key_binding_fires_on_row(superuser, seeded_books, with_overlays):
     """Pressing `f` on a Book row fires BookTui.mark_featured_via_tui.
 
     This is the bug-3 anchor: the on_key handler must look up the overlay's
@@ -257,7 +238,7 @@ async def test_overlay_key_binding_fires_on_row(
 async def test_g_opens_tool_screen_picker(superuser, with_overlays):
     """`g` from IndexScreen opens the tool-screen picker (library/tui.py
     registers `logs` via tui_site.register_screen)."""
-    from admin_tui.screens.index import _ToolScreenPickerModal
+    from dj_admin_tui.screens.index import _ToolScreenPickerModal
 
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:
@@ -273,9 +254,7 @@ async def test_g_opens_tool_screen_picker(superuser, with_overlays):
 
 
 @pytest.mark.django_db
-async def test_q_pops_back_through_screen_stack(
-    superuser, seeded_books, with_overlays
-):
+async def test_q_pops_back_through_screen_stack(superuser, seeded_books, with_overlays):
     """q pops back: changelist → index, detail → changelist."""
     session = TuiSession(user=superuser, app_class=AdminTuiApp)
     async with AdminTuiApp(session=session).run_test(size=(140, 40)) as pilot:

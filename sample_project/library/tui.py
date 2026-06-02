@@ -1,8 +1,8 @@
-"""Library app TUI overlays — exercises every FR-024 extension class.
+"""Library app TUI overlays — exercises every extension class.
 
-This file is the Constitution-VIII "sample app covers every extension
-point" anchor. CI fails if any of the extension paths declared here
-break, so do not delete it without updating the spec.
+This file is the "sample app covers every extension point" anchor.
+CI fails if any of the extension paths declared here break, so do not
+delete it without updating the docs.
 
 Extension points exercised:
   1. Custom row action (mark_featured_via_tui).
@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from admin_tui import TuiAdmin, field_widgets, register, tui_site
-from admin_tui.core.audit import _log_change
-from admin_tui.options import BoundCellValue
+from dj_admin_tui import TuiAdmin, field_widgets, register, tui_site
+from dj_admin_tui.core.audit import _log_change
+from dj_admin_tui.options import BoundCellValue
 from sample_project.library.fields import ColorFormField
 from sample_project.library.models import Author, Book
 from sample_project.library.screens import AuthorStatsScreen, LogEntryScreen

@@ -16,7 +16,7 @@ import importlib
 import pytest
 from django.utils import timezone
 
-from admin_tui.sites import tui_site
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Author, Book, Showcase, Tag
 
 

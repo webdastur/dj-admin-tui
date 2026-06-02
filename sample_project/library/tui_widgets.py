@@ -1,9 +1,8 @@
-"""Custom Textual widget for ColorField (US4 / FR-025 demonstration).
+"""Custom Textual widget for ColorField demonstration.
 
 Pure Textual primitives: a swatch (Static) + an Input bound to the hex
-value. Constitution VI in practice — admin_tui does not introduce a
-parallel widget class; downstream code subclasses textual.widget.Widget
-directly.
+value. dj_admin_tui does not introduce a parallel widget class;
+downstream code subclasses textual.widget.Widget directly.
 """
 
 from __future__ import annotations
@@ -61,7 +60,9 @@ class ColorPickerWidget(Widget):
             return
         # Only apply if it looks like a valid hex; otherwise leave the
         # previous color so the swatch doesn't strobe while typing.
-        if len(color) == 7 and color.startswith("#") and all(
-            c in "0123456789abcdefABCDEF" for c in color[1:]
+        if (
+            len(color) == 7
+            and color.startswith("#")
+            and all(c in "0123456789abcdefABCDEF" for c in color[1:])
         ):
             swatch.styles.background = color

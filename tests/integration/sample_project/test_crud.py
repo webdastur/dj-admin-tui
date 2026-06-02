@@ -1,8 +1,8 @@
-"""Create / edit / readonly_fields + audit parity (FR-013–015, SC-004).
+"""Create / edit / readonly_fields + audit parity.
 
 We exercise the save flow at the call-path level — the same sequence
 ChangeScreen.action_save() runs — rather than driving Pilot. That way we
-isolate Constitution-I + SC-004 fidelity from any current UI quirks.
+isolate admin-bridge and audit fidelity from any current UI quirks.
 
 The save sequence mirrors django.contrib.admin.options._changeform_view:
 
@@ -24,14 +24,14 @@ import pytest
 from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
 from django.contrib.contenttypes.models import ContentType
 
-from admin_tui.core.audit import _change_message, _log_addition, _log_change
-from admin_tui.core.forms import (
+from dj_admin_tui.core.audit import _change_message, _log_addition, _log_change
+from dj_admin_tui.core.forms import (
     _build_form,
     _iter_bound_fields,
     _readonly_field_names,
 )
-from admin_tui.core.request import build_request
-from admin_tui.sites import tui_site
+from dj_admin_tui.core.request import build_request
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Author, Book
 
 
@@ -39,7 +39,7 @@ from sample_project.library.models import Author, Book
 def _reset_tui_site():
     tui_site._registry.clear()
     tui_site._synth_cache.clear()
-    yield
+    return
 
 
 @pytest.fixture
@@ -67,9 +67,7 @@ def _save_flow(overlay, request, *, obj=None, data):
     overlay.before_save(request, new_obj, created=is_add)
     overlay.model_admin.save_model(request, new_obj, form, change=not is_add)
     overlay.model_admin.save_related(request, form, [], change=not is_add)
-    change_message = _change_message(
-        overlay.model_admin, request, form, [], add=is_add
-    )
+    change_message = _change_message(overlay.model_admin, request, form, [], add=is_add)
     if is_add:
         _log_addition(overlay.model_admin, request, new_obj, change_message)
     else:
@@ -83,7 +81,7 @@ def _save_flow(overlay, request, *, obj=None, data):
 
 @pytest.mark.django_db
 def test_create_book_with_valid_data_persists_and_logs(superuser, author):
-    """FR-013 + FR-015 + SC-004: create + LogEntry written + parity."""
+    """Create + LogEntry written + parity."""
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)
     before = Book.objects.count()
@@ -118,7 +116,7 @@ def test_create_book_with_valid_data_persists_and_logs(superuser, author):
 
 @pytest.mark.django_db
 def test_create_with_failing_clean_does_not_save(superuser, author):
-    """FR-013: a `clean_*` rejection blocks save and surfaces the error."""
+    """A `clean_*` rejection blocks save and surfaces the error."""
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)
     before = Book.objects.count()
@@ -153,11 +151,11 @@ def test_create_with_failing_clean_does_not_save(superuser, author):
 
 @pytest.mark.django_db
 def test_edit_existing_book_logs_change_with_parity(superuser, existing_book):
-    """FR-013 + FR-015 + SC-004: edit + LogEntry change_message parity."""
+    """Edit + LogEntry change_message parity."""
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)
 
-    form, obj = _save_flow(
+    form, _obj = _save_flow(
         overlay,
         request,
         obj=existing_book,
@@ -183,11 +181,9 @@ def test_edit_existing_book_logs_change_with_parity(superuser, existing_book):
     assert log.action_flag == CHANGE
     assert log.user_id == superuser.id
 
-    # SC-004 parity: the change_message we stored equals what
+    # Parity: the change_message we stored equals what
     # construct_change_message would return for the same form.
-    expected_msg = overlay.model_admin.construct_change_message(
-        request, form, [], add=False
-    )
+    expected_msg = overlay.model_admin.construct_change_message(request, form, [], add=False)
     assert json.loads(log.change_message) == expected_msg
 
 
@@ -196,7 +192,7 @@ def test_edit_existing_book_logs_change_with_parity(superuser, existing_book):
 
 @pytest.mark.django_db
 def test_readonly_fields_excluded_from_form(superuser, existing_book, monkeypatch):
-    """FR-014 enforcement: Django's `ModelAdmin.get_form` EXCLUDES
+    """Readonly enforcement: Django's `ModelAdmin.get_form` EXCLUDES
     readonly_fields from `form.fields`. That excludes them from POST data
     too, so the user cannot mutate them via the form at all — readonly is
     enforced by absence, not by widget state."""
@@ -218,7 +214,7 @@ def test_readonly_fields_excluded_from_form(superuser, existing_book, monkeypatc
 
 @pytest.mark.django_db
 def test_readonly_field_value_survives_save(superuser, existing_book, monkeypatch):
-    """FR-014: an attempt to mutate a readonly field via the form silently
+    """An attempt to mutate a readonly field via the form silently
     keeps the original value. Even if the operator's submitted data contains
     a new value, the form excludes the field and the instance is untouched."""
     request = build_request(superuser)
@@ -233,12 +229,12 @@ def test_readonly_field_value_survives_save(superuser, existing_book, monkeypatc
         "featured": "False",
         "archived": "False",
         "metadata": "{}",
-            "color": "#000000",
+        "color": "#000000",
         "tags": [],
         # Note: `published` not included because the form would reject it.
         # Even if a malicious caller added it, the form would ignore it.
     }
-    form, obj = _save_flow(overlay, request, obj=existing_book, data=rogue_data)
+    form, _obj = _save_flow(overlay, request, obj=existing_book, data=rogue_data)
     assert form.is_valid(), form.errors.as_json()
     existing_book.refresh_from_db()
     assert existing_book.published == original_published
@@ -249,8 +245,8 @@ def test_readonly_field_value_survives_save(superuser, existing_book, monkeypatc
 
 @pytest.mark.django_db
 def test_before_save_and_after_save_fire_in_order(superuser, author):
-    """FR-024 lifecycle hook: before_save → save → after_save."""
-    from admin_tui.options import TuiAdmin
+    """Lifecycle hook: before_save → save → after_save."""
+    from dj_admin_tui.options import TuiAdmin
 
     calls = []
 
@@ -293,25 +289,23 @@ def test_before_save_and_after_save_fire_in_order(superuser, author):
     assert calls[1][2] == obj.pk
 
 
-# ---- delete (US3 / FR-016, SC-004) -----------------------------
+# ---- delete -----------------------------
 
 
 @pytest.mark.django_db
 def test_tui_delete_path_writes_log_deletion_per_object(superuser, author):
-    """FR-016: deleting through the TUI's delete sequence writes a
+    """Deleting through the TUI's delete sequence writes a
     LogEntry of type DELETION per deleted object, with correct
     user / content_type / object_repr — matching the web admin's
     delete_selected behavior."""
     from django.contrib.admin.models import DELETION
 
-    from admin_tui.core.audit import _log_deletion
+    from dj_admin_tui.core.audit import _log_deletion
 
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)
-    b1 = Book.objects.create(title="Delete Me 1", author=author,
-                             published=dt.date(2020, 1, 1))
-    b2 = Book.objects.create(title="Delete Me 2", author=author,
-                             published=dt.date(2021, 1, 1))
+    b1 = Book.objects.create(title="Delete Me 1", author=author, published=dt.date(2020, 1, 1))
+    b2 = Book.objects.create(title="Delete Me 2", author=author, published=dt.date(2021, 1, 1))
     targets = list(Book.objects.filter(pk__in=[b1.pk, b2.pk]))
 
     # ActionConfirmScreen._do_delete sequence: log first, then delete.
@@ -335,7 +329,7 @@ def test_tui_delete_path_writes_log_deletion_per_object(superuser, author):
 
 @pytest.mark.django_db
 def test_view_only_user_lacks_delete_permission(staff_only_user, author):
-    """FR-016 + Constitution II: a view-only user gets has_delete_permission
+    """A view-only user gets has_delete_permission
     = False. The screen hides the delete affordance based on this gate."""
     from django.contrib.auth.models import Permission
     from django.contrib.contenttypes.models import ContentType as CT
@@ -364,7 +358,7 @@ def test_delete_permission_user_can_delete(staff_only_user, author):
     assert overlay.has_delete_permission(request) is True
 
 
-# ---- audit parity (the SC-004 anchor) ---------------------------
+# ---- audit parity ---------------------------
 
 
 @pytest.mark.django_db

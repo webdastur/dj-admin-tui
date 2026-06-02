@@ -1,4 +1,4 @@
-"""Constitution VII verification — no network is opened during a run.
+"""Verification that no network is opened during a run.
 
 Monkeypatch `socket.socket` to fail any construction, then drive the App
 through a default screen via Pilot. If anything in the runtime path tries
@@ -17,8 +17,8 @@ from unittest.mock import patch
 
 import pytest
 
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
 
 
 @pytest.mark.django_db
@@ -45,5 +45,5 @@ async def test_runtime_does_not_open_a_network_socket(superuser):
     # fires.
     assert call_count["n"] == 0, (
         f"socket.socket() was called {call_count['n']} time(s) during the "
-        f"app boot — Constitution VII forbids opening any network port in v1."
+        f"app boot — the runtime must not open any network port in v1."
     )

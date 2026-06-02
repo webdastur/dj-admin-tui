@@ -1,11 +1,11 @@
 """ModelAdmin registrations for the library sample app.
 
 Standard admin — no TUI-specific config. The TUI's default-overlay
-synthesis (Constitution III) makes these models work in the terminal
-without any additional declarations.
+synthesis makes these models work in the terminal without any
+additional declarations.
 
-The `library/tui.py` overlay (added in US4 / T071) layers TUI-only
-behaviour on top of this admin.
+The `library/tui.py` overlay layers TUI-only behaviour on top of this
+admin.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from sample_project.library.models import Author, Book, BookChapter, Showcase, T
 
 
 class BookChapterInline(admin.TabularInline):
-    """Stock TabularInline — exercises the inline rendering path (R15)."""
+    """Stock TabularInline — exercises the inline rendering path."""
 
     model = BookChapter
     extra = 0
@@ -28,7 +28,7 @@ class BookForm(forms.ModelForm):
     """Admin form for Book that demonstrates a custom validator.
 
     Used by tests/integration/sample_project/test_crud.py to exercise
-    FR-013 (a `clean_*` rejection is surfaced + blocks save) without
+    a `clean_*` rejection being surfaced and blocking save, without
     leaking test-only logic into production code.
     """
 
@@ -39,9 +39,7 @@ class BookForm(forms.ModelForm):
     def clean_title(self):
         title = self.cleaned_data["title"]
         if title.strip().lower() == "forbidden":
-            raise forms.ValidationError(
-                "The word 'forbidden' is reserved — pick another title."
-            )
+            raise forms.ValidationError("The word 'forbidden' is reserved — pick another title.")
         return title
 
 
@@ -72,11 +70,11 @@ def archive_selected_action(modeladmin, request, queryset):  # type: ignore[no-u
 
 
 @admin.action(
-    description="Failing action (testing FR-019 error path)",
+    description="Failing action (demonstrates the error path)",
     permissions=["change"],
 )
 def failing_action(modeladmin, request, queryset):  # type: ignore[no-untyped-def]
-    """Exercises FR-019: emit a message, then raise.
+    """Emit a message, then raise.
 
     `_run_action` must capture the message, surface the exception, and
     NOT fire `after_action`'s success branch.
@@ -125,7 +123,7 @@ class ShowcaseAdmin(admin.ModelAdmin):
 
     list_display = (
         "title",
-        "description",  # intentionally long → exercises truncation (US1)
+        "description",  # intentionally long → exercises truncation
         "status",
         "is_active",
         "author",

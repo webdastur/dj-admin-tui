@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-import admin_tui.screens.changelist as changelist_mod
-from admin_tui._internal.session import TuiSession
-from admin_tui.app import AdminTuiApp
-from admin_tui.screens.changelist import ChangelistScreen
+import dj_admin_tui.screens.changelist as changelist_mod
+from dj_admin_tui._internal.session import TuiSession
+from dj_admin_tui.app import AdminTuiApp
+from dj_admin_tui.screens.changelist import ChangelistScreen
 from sample_project.library.models import Showcase
 
 
@@ -20,11 +20,7 @@ async def _open_showcase(pilot) -> None:
     from textual.widgets import ListView
 
     list_view = pilot.app.screen.query_one("#index-list", ListView)
-    idx = next(
-        i
-        for i, c in enumerate(list_view.children)
-        if getattr(c, "model", None) is Showcase
-    )
+    idx = next(i for i, c in enumerate(list_view.children) if getattr(c, "model", None) is Showcase)
     await pilot.press("down")
     for _ in range(idx):
         await pilot.press("down")
@@ -33,9 +29,7 @@ async def _open_showcase(pilot) -> None:
 
 
 @pytest.mark.django_db
-async def test_changelist_build_error_does_not_crash_app(
-    superuser, showcases, monkeypatch
-):
+async def test_changelist_build_error_does_not_crash_app(superuser, showcases, monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("no such table: library_showcase")
 

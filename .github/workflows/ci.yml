@@ -18,6 +18,15 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
 
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv run --extra docs mkdocs build --strict
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -49,8 +58,8 @@ jobs:
       - run: uv run pytest -q -m "not slow"
 
   test-slow:
-    # Performance + 100k-row tests run in their own job so the default
-    # matrix stays fast (SC-002 / T081).
+    # Performance + large-dataset tests run in their own job so the default
+    # matrix stays fast.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

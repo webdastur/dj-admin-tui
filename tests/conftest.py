@@ -47,7 +47,7 @@ def staff_only_user(db, django_user_model):
 
 @pytest.fixture
 def inactive_staff_user(db, django_user_model):
-    """Inactive staff user — should be refused at CLI resolution (FR-003)."""
+    """Inactive staff user — should be refused at CLI resolution."""
     return django_user_model.objects.create_user(
         username="staff_inactive",
         email="inactive@example.test",
@@ -59,7 +59,7 @@ def inactive_staff_user(db, django_user_model):
 
 @pytest.fixture
 def non_staff_user(db, django_user_model):
-    """Active non-staff user — also refused at CLI resolution (FR-003)."""
+    """Active non-staff user — also refused at CLI resolution."""
     return django_user_model.objects.create_user(
         username="not_staff",
         email="notstaff@example.test",

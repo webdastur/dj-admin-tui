@@ -1,13 +1,13 @@
-"""Changelist parity with the web admin (FR-010..012, SC-001, SC-002).
+"""Changelist parity with the web admin.
 
-The SC-001 contract is "indistinguishable from the web admin's changelist
+The contract is "indistinguishable from the web admin's changelist
 for the same query parameters." We assert that directly: build a
 ChangeList via `_build_changelist(...)` with a `query=` dict and compare
 its `.result_list` (and other key attributes) to the same `ChangeList`
 the `ModelAdmin` would produce.
 
-Because we route through `model_admin.get_changelist_instance(request)`
-(Constitution I), the comparison is essentially identity — but the test
+Because we route through `model_admin.get_changelist_instance(request)`,
+the comparison is essentially identity — but the test
 pins it so a future refactor can't silently fork the behavior.
 """
 
@@ -17,8 +17,8 @@ import datetime as dt
 
 import pytest
 
-from admin_tui.core.changelist import _build_changelist
-from admin_tui.core.request import build_request
+from dj_admin_tui.core.changelist import _build_changelist
+from dj_admin_tui.core.request import build_request
 from sample_project.library.models import Author, Book, Tag
 
 
@@ -136,13 +136,11 @@ def test_pagination_respects_list_per_page(superuser, books, monkeypatch):
 
 @pytest.mark.django_db
 def test_result_set_matches_direct_get_changelist_instance(superuser, books):
-    """SC-001: indistinguishable from what the web admin would produce."""
+    """Indistinguishable from what the web admin would produce."""
     request_a = build_request(superuser, query={"q": "Tolkien"})
     request_b = build_request(superuser, query={"q": "Tolkien"})
     via_admin = _book_admin().get_changelist_instance(request_a)
-    via_tui = _build_changelist(
-        _book_admin(), request_b, query={"q": "Tolkien"}
-    )
+    via_tui = _build_changelist(_book_admin(), request_b, query={"q": "Tolkien"})
     pks_admin = list(via_admin.result_list.values_list("pk", flat=True))
     pks_tui = list(via_tui.result_list.values_list("pk", flat=True))
     assert pks_admin == pks_tui
@@ -154,8 +152,8 @@ def test_overlay_get_list_columns_matches_modeladmin(superuser, books):
     which delegates to `ModelAdmin.get_list_display(...)`. Django's
     ChangeList internally prepends `action_checkbox` for action selection
     — that's a web-admin rendering concern; the TUI uses its own selection
-    mechanism (US3) and reads the un-prepended list_display."""
-    from admin_tui.sites import tui_site
+    mechanism and reads the un-prepended list_display."""
+    from dj_admin_tui.sites import tui_site
 
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)

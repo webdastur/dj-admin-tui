@@ -1,4 +1,4 @@
-"""Admin actions + FR-019 error path (FR-017, FR-018, FR-019, SC-004).
+"""Admin actions + error path.
 
 We exercise `_run_action` at the call-path level. The contract:
 
@@ -22,9 +22,9 @@ from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 
-from admin_tui.core.actions import ActionResult, _get_actions, _run_action
-from admin_tui.core.request import build_request
-from admin_tui.sites import tui_site
+from dj_admin_tui.core.actions import ActionResult, _get_actions, _run_action
+from dj_admin_tui.core.request import build_request
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Author, Book
 
 
@@ -32,7 +32,7 @@ from sample_project.library.models import Author, Book
 def _reset_tui_site():
     tui_site._registry.clear()
     tui_site._synth_cache.clear()
-    yield
+    return
 
 
 @pytest.fixture
@@ -59,13 +59,11 @@ def three_books(db, author):
 
 @pytest.mark.django_db
 def test_mark_featured_action_updates_and_messages(superuser, three_books):
-    """FR-017 + FR-018: action runs, message_user output captured."""
+    """Action runs, message_user output captured."""
     request = build_request(superuser)
     overlay = tui_site.get_or_synthesize(Book)
 
-    result = _run_action(
-        overlay, request, "mark_featured_action", three_books
-    )
+    result = _run_action(overlay, request, "mark_featured_action", three_books)
 
     assert isinstance(result, ActionResult)
     assert result.exception is None
@@ -73,20 +71,18 @@ def test_mark_featured_action_updates_and_messages(superuser, three_books):
     assert Book.objects.filter(pk__in=three_books, featured=True).count() == 3
     # The action's message_user call is captured.
     assert len(result.messages) == 1
-    level, message, _tags = result.messages[0]
+    _level, message, _tags = result.messages[0]
     assert "3 book(s) were updated" in message
 
 
-# ---- failing_action (FR-019 error path) ---------------------------
+# ---- failing_action (error path) ---------------------------
 
 
 @pytest.mark.django_db
-def test_failing_action_captures_pre_raise_messages_and_skips_after_action(
-    superuser, three_books
-):
-    """FR-019: emits a message, raises, no LogEntry written, after_action
+def test_failing_action_captures_pre_raise_messages_and_skips_after_action(superuser, three_books):
+    """Emits a message, raises, no LogEntry written, after_action
     does NOT fire."""
-    from admin_tui.options import TuiAdmin
+    from dj_admin_tui.options import TuiAdmin
 
     after_action_fired = False
 
@@ -114,8 +110,8 @@ def test_failing_action_captures_pre_raise_messages_and_skips_after_action(
 
 @pytest.mark.django_db
 def test_after_action_fires_on_success_branch(superuser, three_books):
-    """Counterpart to the FR-019 test: success branch DOES fire after_action."""
-    from admin_tui.options import TuiAdmin
+    """Counterpart to the error-path test: success branch DOES fire after_action."""
+    from dj_admin_tui.options import TuiAdmin
 
     fired_with: dict = {}
 
@@ -135,7 +131,7 @@ def test_after_action_fires_on_success_branch(superuser, three_books):
 @pytest.mark.django_db
 def test_before_action_fires_unconditionally(superuser, three_books):
     """before_action fires even when the action raises (per the task spec)."""
-    from admin_tui.options import TuiAdmin
+    from dj_admin_tui.options import TuiAdmin
 
     before_action_fired = False
 
@@ -179,9 +175,7 @@ def test_get_actions_filters_for_view_only_user(staff_only_user, three_books):
 
 
 @pytest.mark.django_db
-def test_get_actions_returns_change_actions_for_change_perm_user(
-    staff_only_user, three_books
-):
+def test_get_actions_returns_change_actions_for_change_perm_user(staff_only_user, three_books):
     ct = ContentType.objects.get_for_model(Book)
     staff_only_user.user_permissions.add(
         Permission.objects.get(codename="change_book", content_type=ct),

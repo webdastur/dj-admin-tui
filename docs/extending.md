@@ -12,7 +12,7 @@ autodiscovered at startup.
 
 ```python
 # myapp/tui.py
-from admin_tui import register, TuiAdmin
+from dj_admin_tui import register, TuiAdmin
 from myapp.models import Book
 
 @register(Book)
@@ -83,7 +83,7 @@ per-model via the overlay's `field_widgets` slot.
 
 ```python
 # myapp/tui.py
-from admin_tui import field_widgets
+from dj_admin_tui import field_widgets
 from textual.widgets import Input
 from myapp.forms_fields import ColorFormField
 
@@ -101,7 +101,7 @@ JSON, and numeric fields.
 Register a standalone screen not tied to a model:
 
 ```python
-from admin_tui import tui_site
+from dj_admin_tui import tui_site
 from myapp.screens import LogEntryScreen
 
 tui_site.register_screen("logs", LogEntryScreen)

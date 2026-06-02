@@ -1,0 +1,300 @@
+/*
+ * dj_admin_tui — design system (single source of truth)
+ * ======================================================
+ *
+ * ALL component styling for the TUI lives here. Change a value in this file
+ * and it applies across every screen. Colours come from the active Textual
+ * theme variables ($primary, $surface, $panel, $accent, $error, $text,
+ * $text-muted, …) so switching themes recolours everything automatically; the
+ * user's optional `ADMIN_TUI["THEME"]` .tcss is layered on top of this file and
+ * overrides any rule.
+ *
+ * Screens deliberately carry NO DEFAULT_CSS — they compose elements with the
+ * shared ids/classes defined below.
+ *
+ * Layout tokens (kept in one place — edit here to retune spacing globally):
+ *   field label column width ... 22
+ *   filter sidebar width ........ 28
+ *   row gap ..................... 1
+ */
+
+/* ── Reusable buttons ────────────────────────────────────────────────────
+ * .atui-btn         flat base (no chrome), used everywhere
+ * .atui-btn-primary solid primary (Save / Add / Yes)
+ * .atui-btn-danger  solid error   (Delete)
+ * .atui-btn-default neutral surface (Cancel / No)
+ * .atui-btn-link    text-style link (pagination)
+ */
+.atui-btn {
+    /* Flat, single-row buttons. A taller (height 3) button gets clipped to its
+     * middle row inside the height-1 changelist toolbar — the label vanishes —
+     * and reads as oversized on the change form. One row keeps the label
+     * visible everywhere and matches the compact terminal aesthetic. */
+    height: 1;
+    min-width: 0;
+    padding: 0 2;
+    margin: 0 2 0 0;
+    border: none;
+}
+.atui-btn-primary {
+    background: $primary;
+    color: $text;
+}
+.atui-btn-primary:hover {
+    background: $primary-lighten-1;
+}
+.atui-btn-danger {
+    background: $error;
+    color: $text;
+}
+.atui-btn-danger:hover {
+    background: $error-lighten-1;
+}
+.atui-btn-default {
+    background: $surface;
+    color: $text;
+}
+.atui-btn-default:hover {
+    background: $panel;
+}
+.atui-btn-link {
+    height: 1;
+    padding: 0 1;
+    border: none;
+    background: transparent;
+    color: $accent;
+}
+.atui-btn-link:hover {
+    background: $panel;
+}
+
+/* ── Shared chrome ───────────────────────────────────────────────────────*/
+.atui-breadcrumb {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+.atui-heading {
+    text-style: bold;
+    padding: 0 1;
+}
+.atui-rule {
+    height: 1;
+    color: $primary;
+}
+.atui-spacer {
+    width: 1fr;
+    height: 1;
+}
+
+/* ── Index ───────────────────────────────────────────────────────────────*/
+IndexScreen #index-greeting {
+    height: auto;
+    padding: 0 1;
+    color: $accent;
+}
+
+/* ── Changelist ──────────────────────────────────────────────────────────*/
+ChangelistScreen #object-tools {
+    height: 1;
+    padding: 0 1;
+}
+ChangelistScreen #search-bar {
+    width: 48;
+    height: 1;
+}
+ChangelistScreen #changelist-header {
+    height: auto;
+    padding: 0 1;
+}
+ChangelistScreen #changelist-body {
+    height: 1fr;
+}
+ChangelistScreen #changelist-table {
+    width: 1fr;
+    height: 1fr;
+}
+ChangelistScreen #filter-sidebar {
+    width: 28;
+    height: 1fr;
+    border-left: solid $primary;
+    padding: 0 1;
+}
+ChangelistScreen #pagination {
+    height: 1;
+    align-horizontal: left;
+    padding: 0 1;
+}
+ChangelistScreen #page-indicator {
+    width: auto;
+    padding: 0 2;
+    color: $text-muted;
+}
+ChangelistScreen #cell-preview {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+    background: $panel;
+}
+
+/* ── Change / detail form ────────────────────────────────────────────────*/
+ChangeScreen #detail-body {
+    height: 1fr;
+    padding: 1 2;
+}
+ChangeScreen #detail-heading {
+    text-style: bold;
+    margin-bottom: 1;
+}
+/* Django-style label-left / widget-right rows. */
+ChangeScreen .field-row {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+}
+ChangeScreen .field-label {
+    width: 22;
+    color: $text-muted;
+    text-align: right;
+    padding: 0 2 0 0;
+}
+ChangeScreen .field-widget {
+    width: 1fr;
+    height: auto;
+}
+/* Read-only value column (view mode + read-only fields). `height: auto` + the
+ * 1fr width lets long values (M2M lists, text) wrap to as many rows as needed
+ * so the full value is shown rather than clipped. */
+ChangeScreen .field-value {
+    width: 1fr;
+    height: auto;
+    color: $text;
+}
+/* Free-text lines (inline rows, "(none)", non-form values). These are bare
+ * Statics, NOT label/widget rows — they must NOT carry `layout: horizontal`
+ * (a horizontal box with no child widgets collapses to height 0 and the text
+ * disappears, leaving a blank gap). Plain auto-height block instead. */
+ChangeScreen .field-line {
+    height: auto;
+    color: $text-muted;
+}
+/* Kill the default vertical margins Textual inputs carry, so form rows sit
+ * close together like the Django change form (one blank line per row). */
+ChangeScreen .field-widget Input,
+ChangeScreen .field-widget Select,
+ChangeScreen .field-widget TextArea,
+ChangeScreen .field-widget SelectionList,
+ChangeScreen .field-widget Switch {
+    margin: 0;
+}
+/* Compact, Django-style fields. Textual's default Input/Select/TextArea wrap
+ * the content in a chunky "tall" border (height 3) — that bulky box is what
+ * makes the edit form look oversized. Collapse each to a flat single-row bar
+ * with a subtle surface fill; the right-aligned label column already delimits
+ * one field from the next, so the border earns nothing. Focus recolours the
+ * bar instead of re-adding the border. */
+ChangeScreen .field-widget Input {
+    border: none;
+    height: 1;
+    padding: 0 1;
+    background: $surface;
+}
+ChangeScreen .field-widget Input:focus {
+    border: none;
+    background: $panel;
+}
+ChangeScreen .field-widget Select > SelectCurrent {
+    border: none;
+    padding: 0 1;
+    background: $surface;
+}
+ChangeScreen .field-widget Select:focus > SelectCurrent {
+    border: none;
+    background: $panel;
+}
+ChangeScreen .field-widget TextArea {
+    border: none;
+    padding: 0 1;
+    height: auto;
+    min-height: 3;
+    max-height: 10;
+    background: $surface;
+}
+/* Switch carries the same tall border (3 rows) — flatten it to a one-row
+ * toggle so boolean fields sit on a single line like the web admin's
+ * checkboxes. Keep it flat on focus too, so the row doesn't jump. */
+ChangeScreen .field-widget Switch,
+ChangeScreen .field-widget Switch:focus {
+    border: none;
+    padding: 0;
+}
+ChangeScreen .field-error {
+    color: $error;
+    text-style: italic;
+}
+ChangeScreen .non-field-error {
+    background: $error 20%;
+    color: $error;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+/* `Vertical` defaults to height:1fr + overflow:hidden — left unchecked, the
+ * fieldsets divide the scroll viewport between them and clip every field after
+ * the first. `height: auto` lets each fieldset grow to all its fields, so the
+ * form stacks naturally and #detail-body scrolls when it overflows. */
+ChangeScreen .fieldset {
+    height: auto;
+    margin-bottom: 1;
+    border-top: solid $primary;
+    padding-top: 1;
+}
+ChangeScreen .fieldset-name {
+    text-style: bold;
+    color: $accent;
+}
+ChangeScreen #form-buttons {
+    height: auto;
+    margin-top: 1;
+    padding: 1 0 0 0;
+    border-top: solid $primary;
+}
+
+/* ── Action / delete confirmation ────────────────────────────────────────*/
+ActionConfirmScreen #confirm-body {
+    padding: 2 4;
+}
+ActionConfirmScreen #confirm-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+ActionConfirmScreen .preview-list {
+    color: $text-muted;
+    padding-left: 2;
+    margin-bottom: 1;
+}
+ActionConfirmScreen .error {
+    color: $error;
+    text-style: italic;
+}
+ActionConfirmScreen #confirm-buttons {
+    height: auto;
+    margin-top: 1;
+}
+
+/* ── Modals (search / action picker / tool picker) ───────────────────────*/
+_SearchModal #search-modal {
+    background: $surface;
+    border: tall $primary;
+    padding: 1 2;
+    width: 60;
+    height: auto;
+}
+_ActionPickerModal #action-picker,
+_ToolScreenPickerModal #tool-picker {
+    background: $surface;
+    border: tall $primary;
+    padding: 1 2;
+    width: 60;
+    height: auto;
+    max-height: 80%;
+}

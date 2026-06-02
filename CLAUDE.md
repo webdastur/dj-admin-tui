@@ -5,8 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A Textual terminal UI that drives the Django admin (browse, search, filter, sort,
-create, edit, delete, run admin actions) from the terminal. Import name is
-`admin_tui`. User/developer docs live in `docs/` (start at `docs/README.md`).
+create, edit, delete, run admin actions) from the terminal. Distribution name is
+`dj-admin-tui`; the import package is `dj_admin_tui`. The management command stays
+`manage.py admin_tui` and the settings dict key stays `ADMIN_TUI`. User/developer
+docs live in `docs/` (a MkDocs Material site; start at `docs/index.md`).
 
 **Core rule — reuse Django's admin; never reimplement it.** Querysets, search,
 filtering, ordering, pagination, form construction, validation, permissions,
@@ -24,9 +26,13 @@ python -m pytest -q
 python -m pytest tests/integration/sample_project/test_save_matrix.py   # one file
 python -m pytest -k m2m                                                  # by name
 
-# Lint / format
-ruff check admin_tui tests
-ruff format admin_tui tests
+# Lint / format (CI runs these with no path args, i.e. the whole repo)
+ruff check
+ruff format --check
+
+# Docs (MkDocs Material)
+uv run --extra docs mkdocs serve              # live preview
+uv run --extra docs mkdocs build --strict     # what the docs build verifies
 
 # Run the TUI against the in-repo sample project
 python sample_project/manage.py migrate        # first run / after model changes
@@ -68,10 +74,10 @@ core/                  synthetic request (request.py), changelist/form/action
 ## Invariants (do not break)
 
 - **Public API is exactly five names**: `register`, `TuiAdmin`, `tui_site`,
-  `field_widgets`, `AdminTuiApp`. Everything else under `admin_tui.*` is internal.
+  `field_widgets`, `AdminTuiApp`. Everything else under `dj_admin_tui.*` is internal.
   `tests/unit/test_public_api.py` freezes this; adding a name needs justification +
   test + docs.
-- **All styling lives in `admin_tui/styles.tcss`** — the single design system.
+- **All styling lives in `dj_admin_tui/styles.tcss`** — the single design system.
   Screens carry no `DEFAULT_CSS`; they compose shared ids/classes (`.atui-btn*`,
   `.atui-breadcrumb`, …). Colours use theme variables. The user's
   `ADMIN_TUI["THEME"]` `.tcss` is layered on top via `App.CSS_PATH`.

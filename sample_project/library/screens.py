@@ -1,11 +1,11 @@
-"""Custom Textual screens for the library sample (US4 demonstration).
+"""Custom Textual screens for the library sample.
 
-  - `AuthorStatsScreen` — substituted in for the default `ChangeScreen` via
-    `AuthorTui.get_detail_screen(...)`. Exercises the full-screen
-    replacement extension slot of FR-024.
-  - `LogEntryScreen` — global tool screen registered via
-    `tui_site.register_screen("logs", ...)`. Reachable from the index
-    via the `g` binding.
+- `AuthorStatsScreen` — substituted in for the default `ChangeScreen` via
+  `AuthorTui.get_detail_screen(...)`. Exercises the full-screen
+  replacement extension slot.
+- `LogEntryScreen` — global tool screen registered via
+  `tui_site.register_screen("logs", ...)`. Reachable from the index
+  via the `g` binding.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ from textual.widgets import Footer, Header, Static
 if TYPE_CHECKING:
     from django.http import HttpRequest
 
-    from admin_tui._internal.session import TuiSession
-    from admin_tui.options import TuiAdmin
+    from dj_admin_tui._internal.session import TuiSession
+    from dj_admin_tui.options import TuiAdmin
 
 
 class AuthorStatsScreen(Screen):
@@ -42,9 +42,9 @@ class AuthorStatsScreen(Screen):
     def __init__(
         self,
         *,
-        session: "TuiSession",
-        overlay: "TuiAdmin",
-        request: "HttpRequest",
+        session: TuiSession,
+        overlay: TuiAdmin,
+        request: HttpRequest,
         obj: Any | None = None,
     ) -> None:
         super().__init__()
@@ -63,21 +63,18 @@ class AuthorStatsScreen(Screen):
             latest = self.obj.books.order_by("-published").first()
             if latest:
                 yield Static(
-                    f"[dim]Most recent:[/] {latest.title} "
-                    f"({latest.published or 'undated'})"
+                    f"[dim]Most recent:[/] {latest.title} ({latest.published or 'undated'})"
                 )
             else:
                 yield Static("[dim]No books on file.[/]")
-            yield Static(
-                "\n[dim]Press e to switch to the default edit form.[/]"
-            )
+            yield Static("\n[dim]Press e to switch to the default edit form.[/]")
         yield Footer()
 
     def action_back(self) -> None:
         self.app.pop_screen()
 
     def action_edit_in_default(self) -> None:
-        from admin_tui.screens.change import ChangeScreen
+        from dj_admin_tui.screens.change import ChangeScreen
 
         self.app.pop_screen()
         self.app.push_screen(
@@ -105,7 +102,7 @@ class LogEntryScreen(Screen):
     }
     """
 
-    def __init__(self, *, session: "TuiSession") -> None:
+    def __init__(self, *, session: TuiSession) -> None:
         super().__init__()
         self.session = session
 
@@ -114,13 +111,8 @@ class LogEntryScreen(Screen):
 
         yield Header(show_clock=False)
         with VerticalScroll(id="logs-body"):
-            yield Static(
-                f"[b]Recent activity[/] — {self.session.user.username}"
-            )
-            entries = (
-                LogEntry.objects.filter(user=self.session.user)
-                .order_by("-action_time")[:25]
-            )
+            yield Static(f"[b]Recent activity[/] — {self.session.user.username}")
+            entries = LogEntry.objects.filter(user=self.session.user).order_by("-action_time")[:25]
             count = entries.count()
             if count == 0:
                 yield Static("[dim]No log entries.[/]")

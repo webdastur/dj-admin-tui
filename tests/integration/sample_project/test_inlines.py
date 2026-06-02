@@ -1,8 +1,8 @@
-"""Inline rendering (R15 / FR-024).
+"""Inline rendering.
 
 v1 ships read-only inline display: BookChapter rows show beneath the
 parent Book detail. Editable inline rows are deferred to a follow-up
-release per the spec's Assumptions.
+release.
 
 The contract this test pins:
   - _inline_instances returns the inline classes registered on the
@@ -19,9 +19,9 @@ import pytest
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 
-from admin_tui.core.forms import _inline_instances
-from admin_tui.core.request import build_request
-from admin_tui.sites import tui_site
+from dj_admin_tui.core.forms import _inline_instances
+from dj_admin_tui.core.request import build_request
+from dj_admin_tui.sites import tui_site
 from sample_project.library.models import Author, Book, BookChapter
 
 
@@ -29,7 +29,7 @@ from sample_project.library.models import Author, Book, BookChapter
 def _reset_tui_site():
     tui_site._registry.clear()
     tui_site._synth_cache.clear()
-    yield
+    return
 
 
 @pytest.fixture
@@ -51,9 +51,7 @@ def book_with_chapters(db):
 def test_inline_instances_returned_for_book(superuser, book_with_chapters):
     overlay = tui_site.get_or_synthesize(Book)
     request = build_request(superuser)
-    inlines = _inline_instances(
-        overlay.model_admin, request, book_with_chapters
-    )
+    inlines = _inline_instances(overlay.model_admin, request, book_with_chapters)
     assert len(inlines) == 1
     inline = inlines[0]
     assert inline.model is BookChapter
@@ -73,9 +71,7 @@ def test_related_chapters_filtered_to_parent(superuser, book_with_chapters):
 
     overlay = tui_site.get_or_synthesize(Book)
     request = build_request(superuser)
-    inlines = _inline_instances(
-        overlay.model_admin, request, book_with_chapters
-    )
+    inlines = _inline_instances(overlay.model_admin, request, book_with_chapters)
     inline = inlines[0]
 
     # The TUI scopes by detecting the FK to the parent.
@@ -95,9 +91,7 @@ def test_inline_permission_filtering(staff_only_user, book_with_chapters):
     )
     overlay = tui_site.get_or_synthesize(Book)
     request = build_request(staff_only_user)
-    inlines = _inline_instances(
-        overlay.model_admin, request, book_with_chapters
-    )
+    inlines = _inline_instances(overlay.model_admin, request, book_with_chapters)
     assert inlines == []
 
 
@@ -111,7 +105,5 @@ def test_inline_visible_when_view_perm_present(staff_only_user, book_with_chapte
     )
     overlay = tui_site.get_or_synthesize(Book)
     request = build_request(staff_only_user)
-    inlines = _inline_instances(
-        overlay.model_admin, request, book_with_chapters
-    )
+    inlines = _inline_instances(overlay.model_admin, request, book_with_chapters)
     assert len(inlines) == 1

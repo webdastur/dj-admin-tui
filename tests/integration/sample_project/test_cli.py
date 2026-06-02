@@ -5,7 +5,7 @@ We invoke the command in-process via `call_command(...)`, which forwards
 DB fixtures (so the user-resolution logic can actually find users created in
 the test) without subprocess/test-DB isolation problems.
 
-The SC-008 "exits within 1 second" bound is validated via `time.perf_counter()`
+The "exits within 1 second" bound is validated via `time.perf_counter()`
 around each call. In-process latency is dominated by Django setup which has
 already happened by the time the first test runs, so this is a fast bound.
 """
@@ -46,7 +46,7 @@ def test_nonexistent_user_exits_with_code_2(db):
     code, stderr, elapsed = _call_admin_tui("--user", "does_not_exist_xyz")
     assert code == 2, stderr
     assert "does not exist" in stderr.lower()
-    assert elapsed < 1.0, f"Exit took {elapsed:.2f}s (SC-008 bound: 1s)"
+    assert elapsed < 1.0, f"Exit took {elapsed:.2f}s (bound: 1s)"
 
 
 @pytest.mark.django_db
@@ -109,7 +109,7 @@ def test_app_value_that_is_not_a_subclass_exits_with_code_4(superuser):
         "--user",
         superuser.username,
         "--app",
-        "admin_tui.options.TuiAdmin",  # not an AdminTuiApp
+        "dj_admin_tui.options.TuiAdmin",  # not an AdminTuiApp
     )
     assert code == 4, stderr
     assert "not a subclass" in stderr.lower() or "could not be resolved" in stderr.lower()

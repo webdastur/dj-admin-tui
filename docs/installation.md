@@ -15,20 +15,17 @@ terminal, honoring the same permissions and audit as the web admin.
 
 ```bash
 # uv (recommended)
-uv add django-admin-tui-mvp
+uv add dj-admin-tui
 
 # pip
-pip install django-admin-tui-mvp
+pip install dj-admin-tui
 ```
-
-> The PyPI distribution name is a working title; the **import name is
-> `admin_tui`** and is stable regardless of the final distribution name.
 
 Add the app to your project:
 
 ```python
 # settings.py
-INSTALLED_APPS += ["admin_tui"]
+INSTALLED_APPS += ["dj_admin_tui"]
 ```
 
 That's all. The package autodiscovers any `tui.py` module under each installed
